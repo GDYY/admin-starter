@@ -19,12 +19,18 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/HomeView.vue'),
         meta: { title: '首页' },
       },
-      // TODO(第 3 周任务): 在这里加你的业务页面，例如
+      {
+        path: 'device',
+        name: 'device',
+        component: () => import('@/views/device/DeviceList.vue'),
+        meta: { title: '设备台账' },
+      },
+      // TODO(你的练习): 照着上面抄两个 —— 点检项 / 巡检计划
       // {
-      //   path: 'device',
-      //   name: 'device',
-      //   component: () => import('@/views/DeviceList.vue'),
-      //   meta: { title: '设备台账' },
+      //   path: 'inspect-item',
+      //   name: 'inspect-item',
+      //   component: () => import('@/views/inspect/InspectItemList.vue'),
+      //   meta: { title: '点检项' },
       // },
     ],
   },

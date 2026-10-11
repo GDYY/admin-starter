@@ -2,7 +2,16 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
-import { Expand, Fold, HomeFilled, SwitchButton } from '@element-plus/icons-vue'
+import {
+  DataLine,
+  Document,
+  Expand,
+  Fold,
+  HomeFilled,
+  Monitor,
+  SwitchButton,
+} from '@element-plus/icons-vue'
+import type { Component } from 'vue'
 import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
@@ -10,6 +19,18 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const isCollapse = ref(false)
+
+/**
+ * 菜单配置化：以后加页面只改这个数组，不用动模板。
+ * 想加一个菜单？照着抄一行就行。
+ */
+const menus: { path: string; title: string; icon: Component }[] = [
+  { path: '/home', title: '首页', icon: HomeFilled },
+  { path: '/device', title: '设备台账', icon: Monitor },
+  // TODO(你的练习): 把下面两行的注释去掉，再写好对应页面
+  // { path: '/inspect-item', title: '点检项', icon: Document },
+  // { path: '/inspect-plan', title: '巡检计划', icon: DataLine },
+]
 
 async function handleLogout() {
   try {
@@ -33,11 +54,10 @@ async function handleLogout() {
         :collapse="isCollapse"
         :collapse-transition="false"
       >
-        <el-menu-item index="/home">
-          <el-icon><HomeFilled /></el-icon>
-          <template #title>首页</template>
+        <el-menu-item v-for="m in menus" :key="m.path" :index="m.path">
+          <el-icon><component :is="m.icon" /></el-icon>
+          <template #title>{{ m.title }}</template>
         </el-menu-item>
-        <!-- TODO(你来实现): 每加一个页面，就在这里加一个 el-menu-item -->
       </el-menu>
     </el-aside>
 
