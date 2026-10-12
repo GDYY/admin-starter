@@ -1,0 +1,9 @@
+{
+  // 别人 clone 这个仓库时，VS Code 会提示安装这些扩展
+  "recommendations": [
+    "vue.volar",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "ms-ceintl.vscode-language-pack-zh-hans"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  // 强制把 .vue 文件识别成 Vue 语言（正常情况下 Volar 会自动处理，这里是保险）
+  "files.associations": {
+    "*.vue": "vue"
+  },
+
+  "editor.tabSize": 2,
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "files.eol": "\n",
+
+  // 用项目里装的 TypeScript，而不是 VS Code 自带的那个
+  "typescript.tsdk": "node_modules/typescript/lib"
+}
