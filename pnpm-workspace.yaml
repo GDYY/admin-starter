@@ -2,3 +2,11 @@ allowBuilds:
   '@parcel/watcher': true
   esbuild: true
   vue-demi: true
+
+# 本项目专属的 store 位置。
+# 本项目在 F 盘，store 也放 F 盘，pnpm 才能用硬链接（省一半空间）。
+#
+# ⚠️ 千万不要把这个设置写到全局配置
+#    （C:\Users\91530\AppData\Local\pnpm\config\config.yaml），
+#    否则 DSH 的插件目录（在 C 盘）会因为找不到原来的 store 而装不上插件。
+storeDir: F:\dev\pnpm-store
