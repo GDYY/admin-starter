@@ -3,6 +3,7 @@ import type {
   InspectItem,
   InspectItemQuery,
   PageResult,
+  EnableStatus,
 } from "@/types/inspectItem";
 import { CATEGORY_OPTIONS, inspectItems, useNextId } from "@/mock/inspectDb";
 
@@ -24,6 +25,16 @@ import { CATEGORY_OPTIONS, inspectItems, useNextId } from "@/mock/inspectDb";
 /** 模拟网络延迟，让 loading 效果能被看见 */
 function delay(ms = 300) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+/** 切换启用状态（列表页行内开关用） */
+export async function toggleInspectItemStatus(
+  id: number,
+  status: EnableStatus,
+): Promise<void> {
+  await delay(200);
+  const target = inspectItems.find((i) => i.id === id);
+  if (!target) throw new Error("点检项不存在");
+  target.status = status;
 }
 /** 同一设备类型下，点检项名称不能重复 */
 function assertNoDuplicate(data: InspectItemForm, excludeId?: number) {
