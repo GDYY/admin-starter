@@ -299,7 +299,7 @@ onMounted(async () => {
     <!-- ============ 新增/编辑弹窗 ============ -->
     <InspectItemFormDialog
       v-model="dialogVisible"
-      :device-id="editingId"
+      :item-id="editingId"
       :category-options="categoryOptions"
       @saved="handleSaved"
     />

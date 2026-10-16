@@ -2,13 +2,21 @@
 import { computed, reactive, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import type { FormInstance, FormRules } from "element-plus";
-import { createDevice, getDeviceById, updateDevice } from "@/api/device";
-import type { DeviceForm } from "@/types/device";
-import { DEVICE_STATUS_OPTIONS } from "@/types/device";
+import {
+  createInspectItem,
+  getInspectItemById,
+  updateInspectItem,
+} from "@/api/inspectItem";
+import type {
+  CheckType,
+  EnableStatus,
+  InspectItemForm,
+} from "@/types/inspectItem";
+import { CHECK_TYPE_OPTIONS } from "@/types/inspectItem";
 
 const props = defineProps<{
   modelValue: boolean;
-  deviceId: number | null;
+  itemId: number | null;
   categoryOptions: string[];
 }>();
 
@@ -23,45 +31,88 @@ const visible = computed({
   set: (v: boolean) => emit("update:modelValue", v),
 });
 
-const isEdit = computed(() => props.deviceId !== null);
-const dialogTitle = computed(() => (isEdit.value ? "编辑设备" : "新增设备"));
+const isEdit = computed(() => props.itemId !== null);
+const dialogTitle = computed(() =>
+  isEdit.value ? "编辑点检项" : "新增点检项",
+);
 
 const formRef = ref<FormInstance>();
 const submitting = ref(false);
-
+interface FormState {
+  itemName: string;
+  category: string;
+  checkType: CheckType;
+  unit: string;
+  minValue: number | undefined;
+  maxValue: number | undefined;
+  standard: string;
+  sort: number | undefined;
+  status: number;
+}
 /** 空表单：新增时用它，也用来重置 */
-function emptyForm(): DeviceForm {
+function emptyForm(): FormState {
   return {
-    deviceCode: "",
-    deviceName: "",
+    itemName: "",
     category: "",
-    location: "",
-    model: "",
-    manufacturer: "",
-    purchaseDate: "",
+    checkType: 1,
+    unit: "",
+    minValue: undefined,
+    maxValue: undefined,
+    standard: "",
+    sort: 1,
     status: 1,
-    manager: "",
-    remark: "",
   };
 }
+const form = reactive<FormState>(emptyForm());
 
-const form = reactive<DeviceForm>(emptyForm());
+/** ⭐ 只有「数值录入」才需要 单位 / 上下限 */
+const isNumeric = computed(() => form.checkType === 2);
 
+/** 下限 ≤ 上限 校验器 **/
+function validateRange(
+  _rule: unknown,
+  _value: unknown,
+  callback: (error?: Error) => void,
+) {
+  const { minValue, maxValue } = form;
+  if (minValue !== undefined && maxValue !== undefined && minValue > maxValue) {
+    callback(new Error("正常下限不能大于上限"));
+  } else {
+    callback();
+  }
+}
+function buildPayload(): InspectItemForm {
+  return {
+    itemName: form.itemName.trim(),
+    category: form.category,
+    checkType: form.checkType,
+    unit: isNumeric.value ? form.unit.trim() : "",
+    minValue: isNumeric.value ? (form.minValue ?? null) : null, // undefined → null
+    maxValue: isNumeric.value ? (form.maxValue ?? null) : null,
+    standard: form.standard.trim(),
+    sort: form.sort ?? 1, // undefined → 1
+    status: form.status as EnableStatus, // number → EnableStatus
+  };
+}
 /** 校验规则：写在这里，el-form 会自动跑 */
 const rules: FormRules = {
-  deviceCode: [
-    { required: true, message: "请输入设备编号", trigger: "blur" },
-    {
-      pattern: /^[A-Za-z0-9-]{4,50}$/,
-      message: "只能包含字母、数字和短横线，至少 4 位",
-      trigger: "blur",
-    },
+  itemName: [{ required: true, message: "请输入点检项名称", trigger: "blur" }],
+  category: [
+    { required: true, message: "请选择适用设备类型", trigger: "change" },
   ],
-  deviceName: [{ required: true, message: "请输入设备名称", trigger: "blur" }],
-  category: [{ required: true, message: "请选择设备类型", trigger: "change" }],
-  location: [{ required: true, message: "请输入安装位置", trigger: "blur" }],
-  manager: [{ required: true, message: "请输入责任人", trigger: "blur" }],
-  status: [{ required: true, message: "请选择状态", trigger: "change" }],
+  checkType: [{ required: true, message: "请选择点检类型", trigger: "change" }],
+  standard: [{ required: true, message: "请输入判定标准", trigger: "blur" }],
+  // 下面三条只在 checkType === 2 时字段才渲染 → 没渲染就不注册 → 不会误报
+  unit: [{ required: true, message: "数值型必须填单位", trigger: "blur" }],
+  minValue: [
+    { required: true, message: "请输入正常下限", trigger: "change" },
+    { validator: validateRange, trigger: "change" },
+  ],
+  maxValue: [
+    { required: true, message: "请输入正常上限", trigger: "change" },
+    { validator: validateRange, trigger: "change" },
+  ],
+  sort: [{ required: true, message: "请输入排序号", trigger: "change" }],
 };
 
 /**
@@ -72,12 +123,32 @@ watch(
   () => props.modelValue,
   async (open) => {
     if (!open) return;
-    if (props.deviceId !== null) {
-      const target = await getDeviceById(props.deviceId);
-      Object.assign(form, target ?? emptyForm());
+    if (props.itemId !== null) {
+      const target = await getInspectItemById(props.itemId);
+      if (target) {
+        Object.assign(form, {
+          ...target,
+          minValue: target.minValue ?? undefined,
+          maxValue: target.maxValue ?? undefined,
+        });
+      } else {
+        Object.assign(form, emptyForm());
+      }
     } else {
       Object.assign(form, emptyForm());
     }
+  },
+);
+
+watch(
+  () => form.checkType,
+  (val) => {
+    if (val !== 2) {
+      form.unit = "";
+      form.minValue = undefined;
+      form.maxValue = undefined;
+    }
+    formRef.value?.clearValidate(["unit", "minValue", "maxValue"]);
   },
 );
 
@@ -90,11 +161,11 @@ async function handleSubmit() {
 
   submitting.value = true;
   try {
-    if (isEdit.value && props.deviceId !== null) {
-      await updateDevice(props.deviceId, { ...form });
+    if (isEdit.value && props.itemId !== null) {
+      await updateInspectItem(props.itemId, buildPayload());
       ElMessage.success("修改成功");
     } else {
-      await createDevice({ ...form });
+      await createInspectItem(buildPayload());
       ElMessage.success("新增成功");
     }
     emit("saved");
@@ -110,25 +181,19 @@ async function handleSubmit() {
   <el-dialog
     v-model="visible"
     :title="dialogTitle"
-    width="640px"
+    width="660px"
     :close-on-click-modal="false"
     destroy-on-close
   >
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
+    <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
       <el-row :gutter="16">
         <el-col :span="12">
-          <el-form-item label="设备编号" prop="deviceCode">
-            <el-input v-model="form.deviceCode" placeholder="如 EQ-2026-001" />
+          <el-form-item label="点检项名称" prop="itemName">
+            <el-input v-model="form.itemName" placeholder="如 电机温度" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="设备名称" prop="deviceName">
-            <el-input v-model="form.deviceName" placeholder="如 一号电机" />
-          </el-form-item>
-        </el-col>
-
-        <el-col :span="12">
-          <el-form-item label="设备类型" prop="category">
+          <el-form-item label="适用设备类型" prop="category">
             <el-select
               v-model="form.category"
               placeholder="请选择"
@@ -143,61 +208,74 @@ async function handleSubmit() {
             </el-select>
           </el-form-item>
         </el-col>
+
         <el-col :span="12">
-          <el-form-item label="状态" prop="status">
-            <el-select v-model="form.status" style="width: 100%">
+          <el-form-item label="点检类型" prop="checkType">
+            <el-select
+              v-model="form.checkType"
+              placeholder="请选择"
+              style="width: 100%"
+            >
               <el-option
-                v-for="s in DEVICE_STATUS_OPTIONS"
-                :key="s.value"
-                :label="s.label"
-                :value="s.value"
+                v-for="c in CHECK_TYPE_OPTIONS"
+                :key="c.value"
+                :label="c.label"
+                :value="c.value"
               />
             </el-select>
           </el-form-item>
         </el-col>
-
         <el-col :span="12">
-          <el-form-item label="规格型号" prop="model">
-            <el-input v-model="form.model" />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="生产厂商" prop="manufacturer">
-            <el-input v-model="form.manufacturer" />
-          </el-form-item>
-        </el-col>
-
-        <el-col :span="12">
-          <el-form-item label="安装位置" prop="location">
-            <el-input v-model="form.location" placeholder="如 一号车间-3号位" />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="责任人" prop="manager">
-            <el-input v-model="form.manager" />
-          </el-form-item>
-        </el-col>
-
-        <el-col :span="12">
-          <el-form-item label="采购日期" prop="purchaseDate">
-            <el-date-picker
-              v-model="form.purchaseDate"
-              type="date"
-              value-format="YYYY-MM-DD"
-              placeholder="选择日期"
+          <el-form-item label="排序号" prop="sort">
+            <el-input-number
               style="width: 100%"
+              v-model="form.sort"
+              :min="1"
+              placeholder="请输入排序号"
             />
           </el-form-item>
         </el-col>
 
+        <el-col :span="12" v-if="isNumeric">
+          <el-form-item label="单位" prop="unit">
+            <el-input v-model="form.unit" style="width: 100%" />
+          </el-form-item>
+        </el-col>
+        <!-- 占位：把「下限/上限」挤到下一行，保证这两个同行 -->
+        <el-col :span="12" v-if="isNumeric"> </el-col>
+        <el-col :span="12" v-if="isNumeric">
+          <el-form-item label="下限" prop="minValue">
+            <el-input-number
+              style="width: 100%"
+              v-model="form.minValue"
+              :precision="2"
+              :controls="false"
+            />
+          </el-form-item>
+        </el-col>
+
+        <el-col :span="12" v-if="isNumeric">
+          <el-form-item label="上限" prop="maxValue">
+            <el-input-number
+              style="width: 100%"
+              v-model="form.maxValue"
+              :precision="2"
+              :controls="false"
+            />
+          </el-form-item>
+        </el-col>
         <el-col :span="24">
-          <el-form-item label="备注" prop="remark">
-            <el-input
-              v-model="form.remark"
-              type="textarea"
-              :rows="2"
-              maxlength="200"
-              show-word-limit
+          <el-form-item label="判定标准" prop="standard">
+            <el-input type="textarea" v-model="form.standard" />
+          </el-form-item>
+        </el-col>
+
+        <el-col :span="12">
+          <el-form-item label="是否启用" prop="status">
+            <el-switch
+              v-model="form.status"
+              :active-value="1"
+              :inactive-value="0"
             />
           </el-form-item>
         </el-col>
