@@ -54,12 +54,39 @@ src/
 5. **写列表页**：表格 + 分页 + 搜索 + 新增/编辑弹窗（B 端最核心的一页）
 6. **加数据看板**：装 `echarts`，做一张统计图
 
+## 部署上线（Vercel）
+
+线上地址：`<!-- 部署完成后把 Vercel 地址填在这里，例如 https://admin-starter-xxx.vercel.app -->`
+
+| 配置项 | 值 |
+|---|---|
+| 平台 | Vercel（GitHub 账号直接登录 → Import `GDYY/admin-starter`） |
+| Build Command | `pnpm build` |
+| Output Directory | `dist` |
+| Node 版本 | 平台默认 22.x（`vite 8` 要求 `^20.19.0 \|\| >=22.12.0`，正好满足，无需额外配置） |
+
+**`vercel.json` 必须留着**：路由用的是 `createWebHistory`（history 模式），Vercel 默认只按真实文件路径找资源，直接访问 `/inspect-item` 会 404。文件里的 `rewrites` 把所有路径回退到 `index.html`，交给前端路由处理。
+
+**上线后必做的验证**：点进「点检项」或「设备台账」→ 按 F5 → 必须正常显示，不能出现 Vercel 的 404 页面。这一步过不了，说明 `vercel.json` 没生效。
+
+**备用平台**（Vercel 打不开或访问慢时换）：
+
+- **Cloudflare Pages**：Build command `pnpm build`，输出目录 `dist`；SPA 回退用根目录 `_redirects` 文件，内容 `/* /index.html 200`
+- **Netlify**：发布目录 `dist`；SPA 回退同样用根目录 `_redirects` 文件，内容 `/* /index.html 200`
+
+**线上版本的已知行为**（面试被问到时照实说）：
+
+- 前端演示项目，**没有后端**，`api` 层直接操作内存假数据
+- 新增/修改的数据在**当前页面会话内有效**，**刷新后重置为初始假数据** —— 这是预期行为，不是 bug
+- 部署上去的只有前端静态文件；`vite.config.ts` 里的 `/api` 开发代理在生产环境不存在（目前也没用到）
+
 ## 常用命令备忘
 
 ```bash
 pnpm add echarts              # 加图表库
 pnpm add -D @types/node       # 需要 Node 类型时
 pnpm dev --port 3000          # 换端口
+pnpm preview                  # 本地预览 dist 产物（上线前先自测一遍）
 ```
 
 ## 注意
