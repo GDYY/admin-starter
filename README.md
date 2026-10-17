@@ -56,7 +56,7 @@ src/
 
 ## 部署上线（Vercel）
 
-线上地址：`<!-- 部署完成后把 Vercel 地址填在这里，例如 https://admin-starter-xxx.vercel.app -->`
+线上地址：https://admin-starter-ten.vercel.app/
 
 | 配置项 | 值 |
 |---|---|
