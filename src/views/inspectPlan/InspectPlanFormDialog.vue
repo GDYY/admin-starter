@@ -1,117 +1,150 @@
 <script setup lang="ts">
-// ============================================================
-// 巡检计划 · 表单弹窗骨架（2026-10-19 晚补连续提交用）
-// TODO(明日/阶段 6)：按清单接 API：
-//   1. 编辑回填改为 getInspectPlanById(row.id)
-//   2. 提交改为 createInspectPlan / updateInspectPlan
-//   3. 成功后 emit('success')，列表页刷新
-//   4. dateRange 数组 → startDate/endDate 用 ?? 转换（本文件已演示）
-// ============================================================
-import { reactive, ref, watch } from "vue";
-import { ElMessage } from "element-plus";
-import type { FormInstance, FormRules } from "element-plus";
-import { DEVICE_OPTIONS } from "@/mock/inspectPlanDb";
-import type { InspectPlan } from "@/types/inspectPlan";
+import { computed, reactive, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
+import { createInspectPlan, getInspectPlanById, updateInspectPlan } from '@/api/inspectPlan'
+import { DEVICE_OPTIONS } from '@/mock/inspectPlanDb'
+import type { EnableStatus, InspectFrequency } from '@/types/inspectPlan'
 
-const props = defineProps<{ modelValue: boolean; row: InspectPlan | null }>();
+const props = defineProps<{ modelValue: boolean; planId: number | null }>()
 const emit = defineEmits<{
-  (e: "update:modelValue", value: boolean): void;
-  (e: "success"): void;
-}>();
+  (e: 'update:modelValue', value: boolean): void
+  (e: 'success'): void
+}>()
 
-const formRef = ref<FormInstance>();
+/** 让父组件的 v-model 能用 */
+const visible = computed({
+  get: () => props.modelValue,
+  set: (value: boolean) => emit('update:modelValue', value),
+})
 
-const form = reactive({
-  planName: "",
-  deviceId: undefined as number | undefined,
-  frequency: 1 as 1 | 2 | 3,
-  executor: "",
-  dateRange: [] as string[],
-  status: 1 as 0 | 1,
-});
+const isEdit = computed(() => props.planId !== null)
+const dialogTitle = computed(() => (isEdit.value ? '编辑巡检计划' : '新增巡检计划'))
+
+const formRef = ref<FormInstance>()
+const submitting = ref(false)
+const loadingForm = ref(false)
+
+interface FormState {
+  planName: string
+  deviceId: number | undefined
+  frequency: InspectFrequency
+  executor: string
+  dateRange: string[]
+  status: EnableStatus
+}
+
+/** 空表单：新增时用它，也用来重置 */
+function emptyForm(): FormState {
+  return {
+    planName: '',
+    deviceId: undefined,
+    frequency: 1,
+    executor: '',
+    dateRange: [],
+    status: 1,
+  }
+}
+
+const form = reactive<FormState>(emptyForm())
 
 const rules: FormRules = {
   planName: [
-    { required: true, message: "请输入计划名称", trigger: "blur" },
-    { min: 2, max: 50, message: "长度在 2 到 50 个字符", trigger: "blur" },
+    { required: true, message: '请输入计划名称', trigger: 'blur' },
+    { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' },
   ],
-  deviceId: [{ required: true, message: "请选择设备", trigger: "change" }],
-  frequency: [{ required: true, message: "请选择频率", trigger: "change" }],
-  dateRange: [
-    {
-      required: true,
-      type: "array",
-      message: "请选择生效期间",
-      trigger: "change",
-    },
-  ],
-};
+  deviceId: [{ required: true, message: '请选择设备', trigger: 'change' }],
+  frequency: [{ required: true, message: '请选择频率', trigger: 'change' }],
+  dateRange: [{ required: true, type: 'array', message: '请选择生效期间', trigger: 'change' }],
+}
 
 function resetForm() {
-  form.planName = "";
-  form.deviceId = undefined;
-  form.frequency = 1;
-  form.executor = "";
-  form.dateRange = [];
-  form.status = 1;
-  formRef.value?.clearValidate();
+  Object.assign(form, emptyForm())
+  formRef.value?.clearValidate()
 }
 
-function fillForm(row: InspectPlan) {
-  form.planName = row.planName;
-  form.deviceId = row.deviceId;
-  form.frequency = row.frequency;
-  form.executor = row.executor;
-  form.dateRange =
-    row.startDate && row.endDate ? [row.startDate, row.endDate] : [];
-  form.status = row.status;
+/** 编辑回填：表单需要把日期合成 dateRange */
+async function fillForm(id: number) {
+  loadingForm.value = true
+  try {
+    const target = await getInspectPlanById(id)
+    if (!target) {
+      ElMessage.error('巡检计划不存在')
+      return
+    }
+    Object.assign(form, {
+      planName: target.planName,
+      deviceId: target.deviceId,
+      frequency: target.frequency,
+      executor: target.executor,
+      dateRange: target.startDate && target.endDate ? [target.startDate, target.endDate] : [],
+      status: target.status,
+    })
+  } catch (e) {
+    ElMessage.error((e as Error).message || '加载失败')
+  } finally {
+    loadingForm.value = false
+  }
 }
 
+/**
+ * 关键点：弹窗每次「打开」时才决定是空表单还是回填数据。
+ * 放在 watch 里而不是父组件传进来时立刻赋值，是为了避免还没打开就把数据写脏。
+ */
 watch(
   () => props.modelValue,
-  (visible) => {
-    if (!visible) return;
-    resetForm();
-    if (props.row) fillForm(props.row);
+  async (open) => {
+    if (!open) return
+    resetForm()
+    if (props.planId !== null) await fillForm(props.planId)
   },
-);
+)
 
-// 表单状态 → 接口结构：dateRange 数组拆成两个字段（用 ?? 不用 ||）
 function buildPayload() {
   return {
-    planName: form.planName,
+    planName: form.planName.trim(),
     deviceId: form.deviceId as number,
     frequency: form.frequency,
-    executor: form.executor,
-    startDate: form.dateRange[0] ?? "",
-    endDate: form.dateRange[1] ?? "",
+    executor: form.executor.trim(),
+    startDate: form.dateRange?.[0] ?? '',
+    endDate: form.dateRange?.[1] ?? '',
     status: form.status,
-  };
+  }
 }
 
 async function handleSubmit() {
-  const valid = await formRef.value?.validate().catch(() => false);
-  if (!valid) return;
-  // TODO(阶段 6)：换成 createInspectPlan / updateInspectPlan
-  console.log("[巡检计划] 提交 payload：", buildPayload());
-  ElMessage.success("骨架阶段：payload 已打印到控制台");
-  emit("update:modelValue", false);
-  emit("success");
+  if (!formRef.value) return
+
+  // validate() 校验不通过会 reject，用 catch 兜住转成 boolean
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) return
+
+  submitting.value = true
+  try {
+    if (isEdit.value && props.planId !== null) {
+      await updateInspectPlan(props.planId, buildPayload())
+      ElMessage.success('修改成功')
+    } else {
+      await createInspectPlan(buildPayload())
+      ElMessage.success('新增成功')
+    }
+    visible.value = false
+    emit('success')
+  } catch (e) {
+    ElMessage.error((e as Error).message || '保存失败')
+  } finally {
+    submitting.value = false
+  }
 }
 
 function handleClose() {
-  emit("update:modelValue", false);
+  visible.value = false
 }
 </script>
 
 <template>
-  <el-dialog
-    :model-value="modelValue"
-    :title="row ? '编辑巡检计划' : '新增巡检计划'"
-    width="560px"
-    @close="handleClose"
-  >
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+  <el-dialog v-model="visible" :title="dialogTitle" width="560px" :close-on-click-modal="false">
+    <el-form ref="formRef" v-loading="loadingForm" :model="form" :rules="rules" label-width="100px">
       <el-form-item label="计划名称" prop="planName">
         <el-input
           v-model="form.planName"
@@ -122,18 +155,8 @@ function handleClose() {
       </el-form-item>
 
       <el-form-item label="适用设备" prop="deviceId">
-        <el-select
-          v-model="form.deviceId"
-          filterable
-          placeholder="请选择设备"
-          style="width: 100%"
-        >
-          <el-option
-            v-for="d in DEVICE_OPTIONS"
-            :key="d.value"
-            :label="d.label"
-            :value="d.value"
-          />
+        <el-select v-model="form.deviceId" filterable placeholder="请选择设备" style="width: 100%">
+          <el-option v-for="d in DEVICE_OPTIONS" :key="d.value" :label="d.label" :value="d.value" />
         </el-select>
       </el-form-item>
 
@@ -146,11 +169,7 @@ function handleClose() {
       </el-form-item>
 
       <el-form-item label="执行人" prop="executor">
-        <el-input
-          v-model="form.executor"
-          placeholder="例如：张伟"
-          maxlength="20"
-        />
+        <el-input v-model="form.executor" placeholder="例如：张伟" maxlength="20" />
       </el-form-item>
 
       <el-form-item label="生效期间" prop="dateRange">
@@ -165,17 +184,13 @@ function handleClose() {
       </el-form-item>
 
       <el-form-item label="状态" prop="status">
-        <el-switch
-          v-model="form.status"
-          :active-value="1"
-          :inactive-value="0"
-        />
+        <el-switch v-model="form.status" :active-value="1" :inactive-value="0" />
       </el-form-item>
     </el-form>
 
     <template #footer>
       <el-button @click="handleClose">取消</el-button>
-      <el-button type="primary" @click="handleSubmit">保存</el-button>
+      <el-button type="primary" :loading="submitting" @click="handleSubmit">保存</el-button>
     </template>
   </el-dialog>
 </template>
