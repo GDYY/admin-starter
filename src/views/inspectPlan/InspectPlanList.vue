@@ -1,97 +1,143 @@
 <script setup lang="ts">
-// ============================================================
-// 巡检计划 · 列表页骨架（2026-10-19 晚补连续提交用）
-// TODO(明日/阶段 1)：按《巡检计划-开发清单.md》补全：
-//   1. 写死数据补到 5~8 条，覆盖停用/三种频率/跨年/长名称/空执行人
-//   2. 阶段 2：字段抽到 src/types/inspectPlan.ts
-//   3. 阶段 3：数据移到 src/mock/inspectPlanDb.ts（引用 devices）
-//   4. 阶段 4：抽 src/api/inspectPlan.ts，阶段 5 列表页全部接 API
-// ============================================================
-import { reactive, ref } from "vue";
-import { ElMessage, ElMessageBox } from "element-plus";
-import InspectPlanFormDialog from "./InspectPlanFormDialog.vue";
-import type { InspectFrequency, InspectPlan, InspectPlanQuery } from "@/types/inspectPlan";
-import {
-  FREQUENCY_MAP,
-  FREQUENCY_OPTIONS,
-  ENABLE_STATUS_OPTIONS,
-} from "@/types/inspectPlan";
-import { inspectPlans, DEVICE_OPTIONS } from "@/mock/inspectPlanDb"; // 阶段 5 后改为 "@/api/inspectPlan"
+import { onMounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { deleteInspectPlan, getInspectPlanPage, toggleInspectPlanStatus } from '@/api/inspectPlan'
+import type {
+  EnableStatus,
+  InspectFrequency,
+  InspectPlan,
+  InspectPlanQuery,
+} from '@/types/inspectPlan'
+import { FREQUENCY_MAP, FREQUENCY_OPTIONS, ENABLE_STATUS_OPTIONS } from '@/types/inspectPlan'
+import { DEVICE_OPTIONS } from '@/mock/inspectPlanDb'
+import InspectPlanFormDialog from './InspectPlanFormDialog.vue'
 
 /* ---------------- 查询条件 ---------------- */
 const query = reactive<InspectPlanQuery>({
   page: 1,
   pageSize: 10,
-  keyword: "",
-  deviceId: "",
-  frequency: "",
-  status: "",
-});
+  keyword: '',
+  deviceId: '',
+  frequency: '',
+  status: '',
+})
+
 /* ---------------- 列表数据 ---------------- */
-const list = ref<InspectPlan[]>([...inspectPlans]);
+const loading = ref(false)
+const list = ref<InspectPlan[]>([])
+const total = ref(0)
 
-const dialogVisible = ref(false);
-const editingRow = ref<InspectPlan | null>(null);
+async function loadData() {
+  loading.value = true
+  try {
+    const res = await getInspectPlanPage(query)
+    list.value = res.list
+    total.value = res.total
+  } catch (e) {
+    ElMessage.error((e as Error).message || '查询失败')
+  } finally {
+    loading.value = false
+  }
+}
 
+/**
+ * 查询。必须把 page 重置回 1：
+ * 否则翻到第 5 页再搜一个只有 3 条结果的条件，就会停在空列表上。
+ */
 function handleSearch() {
-  // TODO(阶段 5)：接 getInspectPlanPage
-  ElMessage.info("筛选逻辑将在阶段 5 接入 API，当前为骨架");
+  query.page = 1
+  loadData()
 }
 
 function handleReset() {
-  query.keyword = "";
-  query.deviceId = "";
-  query.frequency = "";
-  query.status = "";
+  query.keyword = ''
+  query.deviceId = ''
+  query.frequency = ''
+  query.status = ''
+  query.page = 1
+  loadData()
 }
 
+/* ---------------- 新增 / 编辑 ---------------- */
+const dialogVisible = ref(false)
+const editingId = ref<number | null>(null)
+
 function openCreate() {
-  editingRow.value = null;
-  dialogVisible.value = true;
+  editingId.value = null
+  dialogVisible.value = true
 }
 
 function openEdit(row: InspectPlan) {
-  editingRow.value = row;
-  dialogVisible.value = true;
-}
-
-async function handleDelete(row: InspectPlan) {
-  try {
-    await ElMessageBox.confirm(`确定删除「${row.planName}」吗？`, "提示", {
-      type: "warning",
-    });
-  } catch {
-    return;
-  }
-  list.value = list.value.filter((r) => r.id !== row.id);
-  ElMessage.success("已删除（骨架阶段仅删内存数据）");
+  editingId.value = row.id
+  dialogVisible.value = true
 }
 
 function handleSuccess() {
-  ElMessage.success("保存成功（骨架阶段暂不落库）");
+  dialogVisible.value = false
+  loadData()
 }
+
+/**
+ * 行内开关：el-switch 有 v-model，点下去 row.status 立刻变了（乐观更新）。
+ * 接口失败必须回滚，否则界面和后端不一致。
+ */
+async function handleStatusChange(row: InspectPlan) {
+  const next = row.status
+  try {
+    await toggleInspectPlanStatus(row.id, next)
+    if (next === 1) {
+      ElMessage.success(`「${row.planName}」已启用`)
+    } else {
+      ElMessage.info(`「${row.planName}」已停用`)
+    }
+  } catch (e) {
+    row.status = (next === 1 ? 0 : 1) as EnableStatus
+    ElMessage.error((e as Error).message || '操作失败')
+  }
+}
+
+/* ---------------- 删除 ---------------- */
+async function handleDelete(row: InspectPlan) {
+  try {
+    await ElMessageBox.confirm(`确定删除「${row.planName}」吗？`, '删除确认', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return // 用户点了取消
+  }
+
+  try {
+    await deleteInspectPlan(row.id)
+    ElMessage.success('删除成功')
+    // 删的是当前页最后一条时往前翻一页，避免停在空页
+    if (list.value.length === 1 && query.page > 1) {
+      query.page -= 1
+    }
+    loadData()
+  } catch (e) {
+    ElMessage.error((e as Error).message || '删除失败')
+  }
+}
+
+onMounted(loadData)
 </script>
 
 <template>
   <div>
     <el-card shadow="never" class="filter-card">
-      <el-form inline>
+      <el-form inline @submit.prevent>
         <el-form-item label="关键字">
           <el-input
             v-model="query.keyword"
             placeholder="计划名称 / 设备名称"
             clearable
-            style="width: 200px"
+            @keyup.enter="handleSearch"
           />
         </el-form-item>
         <el-form-item label="设备">
-          <el-select
-            filterable
-            v-model="query.deviceId"
-            placeholder="全部"
-            clearable
-            style="width: 220px"
-          >
+          <el-select filterable v-model="query.deviceId" placeholder="全部" clearable>
             <el-option
               v-for="d in DEVICE_OPTIONS"
               :key="d.value"
@@ -101,12 +147,7 @@ function handleSuccess() {
           </el-select>
         </el-form-item>
         <el-form-item label="频率">
-          <el-select
-            v-model="query.frequency"
-            placeholder="全部"
-            clearable
-            style="width: 120px"
-          >
+          <el-select v-model="query.frequency" placeholder="全部" clearable style="width: 120px">
             <el-option
               v-for="c in FREQUENCY_OPTIONS"
               :key="c.value"
@@ -116,12 +157,7 @@ function handleSuccess() {
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
-          <el-select
-            v-model="query.status"
-            placeholder="全部"
-            clearable
-            style="width: 120px"
-          >
+          <el-select v-model="query.status" placeholder="全部" clearable style="width: 120px">
             <el-option
               v-for="s in ENABLE_STATUS_OPTIONS"
               :key="s.value"
@@ -139,18 +175,13 @@ function handleSuccess() {
 
     <el-card shadow="never">
       <div class="toolbar">
-        <span>共 {{ list.length }} 条巡检计划</span>
+        <span>共 {{ total }} 条巡检计划</span>
         <el-button type="primary" @click="openCreate">新增巡检计划</el-button>
       </div>
 
-      <el-table :data="list" border stripe>
+      <el-table v-loading="loading" :data="list" border stripe>
         <el-table-column type="index" label="#" width="50" />
-        <el-table-column
-          prop="planName"
-          label="计划名称"
-          min-width="200"
-          show-overflow-tooltip
-        />
+        <el-table-column prop="planName" label="计划名称" min-width="200" show-overflow-tooltip />
         <el-table-column label="设备" min-width="180">
           <template #default="{ row }">
             <div>{{ row.deviceCode }}</div>
@@ -165,12 +196,10 @@ function handleSuccess() {
           </template>
         </el-table-column>
         <el-table-column prop="executor" label="执行人" width="100">
-          <template #default="{ row }">{{ row.executor || "—" }}</template>
+          <template #default="{ row }">{{ row.executor || '—' }}</template>
         </el-table-column>
         <el-table-column label="生效期间" width="210">
-          <template #default="{ row }"
-            >{{ row.startDate }} ~ {{ row.endDate }}</template
-          >
+          <template #default="{ row }">{{ row.startDate }} ~ {{ row.endDate }}</template>
         </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
@@ -178,37 +207,33 @@ function handleSuccess() {
               v-model="row.status"
               :active-value="1"
               :inactive-value="0"
+              @change="handleStatusChange(row)"
             />
           </template>
         </el-table-column>
         <el-table-column label="操作" width="140" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEdit(row)"
-              >编辑</el-button
-            >
-            <el-button link type="danger" @click="handleDelete(row)"
-              >删除</el-button
-            >
+            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
 
       <div class="pagination">
-        <!-- TODO(阶段 5)：接 getInspectPlanPage 后启用联动 -->
         <el-pagination
+          v-model:current-page="query.page"
+          v-model:page-size="query.pageSize"
           background
-          layout="total, prev, pager, next, sizes"
-          :total="list.length"
-          :page-size="10"
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="total"
+          :page-sizes="[10, 20, 50]"
+          @current-change="loadData"
+          @size-change="handleSearch"
         />
       </div>
     </el-card>
 
-    <InspectPlanFormDialog
-      v-model="dialogVisible"
-      :row="editingRow"
-      @success="handleSuccess"
-    />
+    <InspectPlanFormDialog v-model="dialogVisible" :plan-id="editingId" @success="handleSuccess" />
   </div>
 </template>
 
