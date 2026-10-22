@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { deleteInspectPlan, getInspectPlanPage, toggleInspectPlanStatus } from '@/api/inspectPlan'
+import {
+  deleteInspectPlan,
+  getInspectPlanPage,
+  toggleInspectPlanStatus,
+  getDeviceOptions,
+} from '@/api/inspectPlan'
 import type {
   EnableStatus,
   InspectFrequency,
@@ -9,7 +14,6 @@ import type {
   InspectPlanQuery,
 } from '@/types/inspectPlan'
 import { FREQUENCY_MAP, FREQUENCY_OPTIONS, ENABLE_STATUS_OPTIONS } from '@/types/inspectPlan'
-import { DEVICE_OPTIONS } from '@/mock/inspectPlanDb'
 import InspectPlanFormDialog from './InspectPlanFormDialog.vue'
 
 /* ---------------- 查询条件 ---------------- */
@@ -26,6 +30,9 @@ const query = reactive<InspectPlanQuery>({
 const loading = ref(false)
 const list = ref<InspectPlan[]>([])
 const total = ref(0)
+const deviceOptions = ref<{ label: string; value: number }[]>([])
+// 正在进行中的行（loading + 防重复点击）
+const switchingIds = ref(new Set<number>())
 
 async function loadData() {
   loading.value = true
@@ -61,7 +68,6 @@ function handleReset() {
 /* ---------------- 新增 / 编辑 ---------------- */
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
-
 function openCreate() {
   editingId.value = null
   dialogVisible.value = true
@@ -78,11 +84,13 @@ function handleSuccess() {
 }
 
 /**
- * 行内开关：el-switch 有 v-model，点下去 row.status 立刻变了（乐观更新）。
- * 接口失败必须回滚，否则界面和后端不一致。
+ * el-switch 的 before-change：先调接口，成功返回 true 才切换，失败返回 false 不切。
+ * 界面只在接口确认后变化，所以不存在"乐观更新后回滚"的问题。
  */
-async function handleStatusChange(row: InspectPlan) {
-  const next = row.status
+async function beforeToggle(row: InspectPlan) {
+  if (switchingIds.value.has(row.id)) return false
+  const next = (row.status === 1 ? 0 : 1) as EnableStatus
+  switchingIds.value.add(row.id)
   try {
     await toggleInspectPlanStatus(row.id, next)
     if (next === 1) {
@@ -90,9 +98,12 @@ async function handleStatusChange(row: InspectPlan) {
     } else {
       ElMessage.info(`「${row.planName}」已停用`)
     }
+    return true // 允许切换，el-switch 会把 row.status 改过来
   } catch (e) {
-    row.status = (next === 1 ? 0 : 1) as EnableStatus
     ElMessage.error((e as Error).message || '操作失败')
+    return false // 阻止切换，状态保持原样
+  } finally {
+    switchingIds.value.delete(row.id)
   }
 }
 
@@ -121,7 +132,18 @@ async function handleDelete(row: InspectPlan) {
   }
 }
 
-onMounted(loadData)
+async function loadDeviceOptions() {
+  try {
+    deviceOptions.value = await getDeviceOptions()
+  } catch (e) {
+    ElMessage.error((e as Error).message || '设备列表加载失败')
+  }
+}
+
+onMounted(() => {
+  loadDeviceOptions()
+  loadData()
+})
 </script>
 
 <template>
@@ -131,7 +153,7 @@ onMounted(loadData)
         <el-form-item label="关键字">
           <el-input
             v-model="query.keyword"
-            placeholder="计划名称 / 设备名称"
+            placeholder="计划名称 / 设备名称 / 设备编码"
             clearable
             @keyup.enter="handleSearch"
           />
@@ -139,7 +161,7 @@ onMounted(loadData)
         <el-form-item label="设备">
           <el-select filterable v-model="query.deviceId" placeholder="全部" clearable>
             <el-option
-              v-for="d in DEVICE_OPTIONS"
+              v-for="d in deviceOptions"
               :key="d.value"
               :label="d.label"
               :value="d.value"
@@ -180,7 +202,12 @@ onMounted(loadData)
       </div>
 
       <el-table v-loading="loading" :data="list" border stripe>
-        <el-table-column type="index" label="#" width="50" />
+        <el-table-column
+          type="index"
+          label="#"
+          width="50"
+          :index="(i: number) => (query.page - 1) * query.pageSize + i + 1"
+        />
         <el-table-column prop="planName" label="计划名称" min-width="200" show-overflow-tooltip />
         <el-table-column label="设备" min-width="180">
           <template #default="{ row }">
@@ -207,7 +234,9 @@ onMounted(loadData)
               v-model="row.status"
               :active-value="1"
               :inactive-value="0"
-              @change="handleStatusChange(row)"
+              :loading="switchingIds.has(row.id)"
+              :disabled="switchingIds.has(row.id)"
+              :before-change="() => beforeToggle(row)"
             />
           </template>
         </el-table-column>
@@ -233,7 +262,12 @@ onMounted(loadData)
       </div>
     </el-card>
 
-    <InspectPlanFormDialog v-model="dialogVisible" :plan-id="editingId" @success="handleSuccess" />
+    <InspectPlanFormDialog
+      v-model="dialogVisible"
+      :plan-id="editingId"
+      @success="handleSuccess"
+      :device-options="deviceOptions"
+    />
   </div>
 </template>
 

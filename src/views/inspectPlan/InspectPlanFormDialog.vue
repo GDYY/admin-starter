@@ -3,10 +3,13 @@ import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { createInspectPlan, getInspectPlanById, updateInspectPlan } from '@/api/inspectPlan'
-import { DEVICE_OPTIONS } from '@/mock/inspectPlanDb'
 import type { EnableStatus, InspectFrequency } from '@/types/inspectPlan'
 
-const props = defineProps<{ modelValue: boolean; planId: number | null }>()
+const props = defineProps<{
+  modelValue: boolean
+  planId: number | null
+  deviceOptions: { label: string; value: number }[]
+}>()
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void
   (e: 'success'): void
@@ -156,7 +159,7 @@ function handleClose() {
 
       <el-form-item label="适用设备" prop="deviceId">
         <el-select v-model="form.deviceId" filterable placeholder="请选择设备" style="width: 100%">
-          <el-option v-for="d in DEVICE_OPTIONS" :key="d.value" :label="d.label" :value="d.value" />
+          <el-option v-for="d in deviceOptions" :key="d.value" :label="d.label" :value="d.value" />
         </el-select>
       </el-form-item>
 

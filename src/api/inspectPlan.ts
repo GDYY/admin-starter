@@ -6,7 +6,7 @@ import type {
   EnableStatus,
 } from '@/types/inspectPlan'
 import { devices } from '@/mock/db'
-import { inspectPlans, useNextId } from '@/mock/inspectPlanDb'
+import { inspectPlans, useNextId, DEVICE_OPTIONS } from '@/mock/inspectPlanDb'
 
 /**
  * ============================================================
@@ -50,10 +50,12 @@ function findDevice(deviceId: number) {
   return device
 }
 
-/** 关键字匹配：计划名称 / 设备名称  */
+/** 关键字匹配：计划名称 / 设备名称 / 设备编码  */
 function matchKeyword(row: InspectPlan, keyword: string) {
   return (
-    row.planName.toLowerCase().includes(keyword) || row.deviceName.toLowerCase().includes(keyword)
+    row.planName.toLowerCase().includes(keyword) ||
+    row.deviceName.toLowerCase().includes(keyword) ||
+    row.deviceCode.toLowerCase().includes(keyword)
   )
 }
 
@@ -119,4 +121,17 @@ export async function deleteInspectPlan(id: number): Promise<void> {
   const index = inspectPlans.findIndex((i) => i.id === id)
   if (index === -1) throw new Error('巡检计划不存在')
   inspectPlans.splice(index, 1)
+}
+
+/** 设备下拉选项 */
+export async function getDeviceOptions(): Promise<
+  { label: string; value: number; deviceCode: string; deviceName: string }[]
+> {
+  await delay(100)
+  return [...DEVICE_OPTIONS].map((d) => ({
+    label: d.label,
+    value: d.value,
+    deviceCode: d.deviceCode,
+    deviceName: d.deviceName,
+  }))
 }
