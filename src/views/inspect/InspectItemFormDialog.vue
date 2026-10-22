@@ -1,84 +1,70 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
-import { ElMessage } from "element-plus";
-import type { FormInstance, FormRules } from "element-plus";
-import {
-  createInspectItem,
-  getInspectItemById,
-  updateInspectItem,
-} from "@/api/inspectItem";
-import type {
-  CheckType,
-  EnableStatus,
-  InspectItemForm,
-} from "@/types/inspectItem";
-import { CHECK_TYPE_OPTIONS } from "@/types/inspectItem";
+import { computed, reactive, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
+import { createInspectItem, getInspectItemById, updateInspectItem } from '@/api/inspectItem'
+import type { CheckType, EnableStatus, InspectItemForm } from '@/types/inspectItem'
+import { CHECK_TYPE_OPTIONS } from '@/types/inspectItem'
 
 const props = defineProps<{
-  modelValue: boolean;
-  itemId: number | null;
-  categoryOptions: string[];
-}>();
+  modelValue: boolean
+  itemId: number | null
+  categoryOptions: string[]
+}>()
 
 const emit = defineEmits<{
-  (e: "update:modelValue", v: boolean): void;
-  (e: "saved"): void;
-}>();
+  (e: 'update:modelValue', v: boolean): void
+  (e: 'saved'): void
+}>()
 
 /** 让父组件的 v-model 能用 */
 const visible = computed({
   get: () => props.modelValue,
-  set: (v: boolean) => emit("update:modelValue", v),
-});
+  set: (v: boolean) => emit('update:modelValue', v),
+})
 
-const isEdit = computed(() => props.itemId !== null);
-const dialogTitle = computed(() =>
-  isEdit.value ? "编辑点检项" : "新增点检项",
-);
+const isEdit = computed(() => props.itemId !== null)
+const dialogTitle = computed(() => (isEdit.value ? '编辑点检项' : '新增点检项'))
 
-const formRef = ref<FormInstance>();
-const submitting = ref(false);
+const formRef = ref<FormInstance>()
+const submitting = ref(false)
 interface FormState {
-  itemName: string;
-  category: string;
-  checkType: CheckType;
-  unit: string;
-  minValue: number | undefined;
-  maxValue: number | undefined;
-  standard: string;
-  sort: number | undefined;
-  status: number;
+  itemName: string
+  category: string
+  checkType: CheckType
+  unit: string
+  minValue: number | undefined
+  maxValue: number | undefined
+  standard: string
+  sort: number | undefined
+  status: number
 }
 /** 空表单：新增时用它，也用来重置 */
 function emptyForm(): FormState {
   return {
-    itemName: "",
-    category: "",
+    itemName: '',
+    category: '',
     checkType: 1,
-    unit: "",
+    unit: '',
     minValue: undefined,
     maxValue: undefined,
-    standard: "",
+    standard: '',
     sort: 1,
     status: 1,
-  };
+  }
 }
-const form = reactive<FormState>(emptyForm());
+const form = reactive<FormState>(emptyForm())
 
 /** ⭐ 只有「数值录入」才需要 单位 / 上下限 */
-const isNumeric = computed(() => form.checkType === 2);
+const isNumeric = computed(() => form.checkType === 2)
 
 /** 下限 ≤ 上限 校验器 **/
-function validateRange(
-  _rule: unknown,
-  _value: unknown,
-  callback: (error?: Error) => void,
-) {
-  const { minValue, maxValue } = form;
+function validateRange(_rule: unknown, _value: unknown, callback: (error?: Error) => void) {
+  const { minValue, maxValue } = form
   if (minValue !== undefined && maxValue !== undefined && minValue > maxValue) {
-    callback(new Error("正常下限不能大于上限"));
+    callback(new Error('正常下限不能大于上限'))
   } else {
-    callback();
+    callback()
   }
 }
 function buildPayload(): InspectItemForm {
@@ -86,34 +72,32 @@ function buildPayload(): InspectItemForm {
     itemName: form.itemName.trim(),
     category: form.category,
     checkType: form.checkType,
-    unit: isNumeric.value ? form.unit.trim() : "",
+    unit: isNumeric.value ? form.unit.trim() : '',
     minValue: isNumeric.value ? (form.minValue ?? null) : null, // undefined → null
     maxValue: isNumeric.value ? (form.maxValue ?? null) : null,
     standard: form.standard.trim(),
     sort: form.sort ?? 1, // undefined → 1
     status: form.status as EnableStatus, // number → EnableStatus
-  };
+  }
 }
 /** 校验规则：写在这里，el-form 会自动跑 */
 const rules: FormRules = {
-  itemName: [{ required: true, message: "请输入点检项名称", trigger: "blur" }],
-  category: [
-    { required: true, message: "请选择适用设备类型", trigger: "change" },
-  ],
-  checkType: [{ required: true, message: "请选择点检类型", trigger: "change" }],
-  standard: [{ required: true, message: "请输入判定标准", trigger: "blur" }],
+  itemName: [{ required: true, message: '请输入点检项名称', trigger: 'blur' }],
+  category: [{ required: true, message: '请选择适用设备类型', trigger: 'change' }],
+  checkType: [{ required: true, message: '请选择点检类型', trigger: 'change' }],
+  standard: [{ required: true, message: '请输入判定标准', trigger: 'blur' }],
   // 下面三条只在 checkType === 2 时字段才渲染 → 没渲染就不注册 → 不会误报
-  unit: [{ required: true, message: "数值型必须填单位", trigger: "blur" }],
+  unit: [{ required: true, message: '数值型必须填单位', trigger: 'blur' }],
   minValue: [
-    { required: true, message: "请输入正常下限", trigger: "change" },
-    { validator: validateRange, trigger: "change" },
+    { required: true, message: '请输入正常下限', trigger: 'change' },
+    { validator: validateRange, trigger: 'change' },
   ],
   maxValue: [
-    { required: true, message: "请输入正常上限", trigger: "change" },
-    { validator: validateRange, trigger: "change" },
+    { required: true, message: '请输入正常上限', trigger: 'change' },
+    { validator: validateRange, trigger: 'change' },
   ],
-  sort: [{ required: true, message: "请输入排序号", trigger: "change" }],
-};
+  sort: [{ required: true, message: '请输入排序号', trigger: 'change' }],
+}
 
 /**
  * 关键点：弹窗每次「打开」时才决定是空表单还是回填数据。
@@ -122,57 +106,57 @@ const rules: FormRules = {
 watch(
   () => props.modelValue,
   async (open) => {
-    if (!open) return;
+    if (!open) return
     if (props.itemId !== null) {
-      const target = await getInspectItemById(props.itemId);
+      const target = await getInspectItemById(props.itemId)
       if (target) {
         Object.assign(form, {
           ...target,
           minValue: target.minValue ?? undefined,
           maxValue: target.maxValue ?? undefined,
-        });
+        })
       } else {
-        Object.assign(form, emptyForm());
+        Object.assign(form, emptyForm())
       }
     } else {
-      Object.assign(form, emptyForm());
+      Object.assign(form, emptyForm())
     }
   },
-);
+)
 
 watch(
   () => form.checkType,
   (val) => {
     if (val !== 2) {
-      form.unit = "";
-      form.minValue = undefined;
-      form.maxValue = undefined;
+      form.unit = ''
+      form.minValue = undefined
+      form.maxValue = undefined
     }
-    formRef.value?.clearValidate(["unit", "minValue", "maxValue"]);
+    formRef.value?.clearValidate(['unit', 'minValue', 'maxValue'])
   },
-);
+)
 
 async function handleSubmit() {
-  if (!formRef.value) return;
+  if (!formRef.value) return
 
   // validate() 校验不通过会 reject，用 catch 兜住转成 boolean
-  const valid = await formRef.value.validate().catch(() => false);
-  if (!valid) return;
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) return
 
-  submitting.value = true;
+  submitting.value = true
   try {
     if (isEdit.value && props.itemId !== null) {
-      await updateInspectItem(props.itemId, buildPayload());
-      ElMessage.success("修改成功");
+      await updateInspectItem(props.itemId, buildPayload())
+      ElMessage.success('修改成功')
     } else {
-      await createInspectItem(buildPayload());
-      ElMessage.success("新增成功");
+      await createInspectItem(buildPayload())
+      ElMessage.success('新增成功')
     }
-    emit("saved");
+    emit('saved')
   } catch (e) {
-    ElMessage.error((e as Error).message || "保存失败");
+    ElMessage.error((e as Error).message || '保存失败')
   } finally {
-    submitting.value = false;
+    submitting.value = false
   }
 }
 </script>
@@ -194,28 +178,15 @@ async function handleSubmit() {
         </el-col>
         <el-col :span="12">
           <el-form-item label="适用设备类型" prop="category">
-            <el-select
-              v-model="form.category"
-              placeholder="请选择"
-              style="width: 100%"
-            >
-              <el-option
-                v-for="c in categoryOptions"
-                :key="c"
-                :label="c"
-                :value="c"
-              />
+            <el-select v-model="form.category" placeholder="请选择" style="width: 100%">
+              <el-option v-for="c in categoryOptions" :key="c" :label="c" :value="c" />
             </el-select>
           </el-form-item>
         </el-col>
 
         <el-col :span="12">
           <el-form-item label="点检类型" prop="checkType">
-            <el-select
-              v-model="form.checkType"
-              placeholder="请选择"
-              style="width: 100%"
-            >
+            <el-select v-model="form.checkType" placeholder="请选择" style="width: 100%">
               <el-option
                 v-for="c in CHECK_TYPE_OPTIONS"
                 :key="c.value"
@@ -272,11 +243,7 @@ async function handleSubmit() {
 
         <el-col :span="12">
           <el-form-item label="是否启用" prop="status">
-            <el-switch
-              v-model="form.status"
-              :active-value="1"
-              :inactive-value="0"
-            />
+            <el-switch v-model="form.status" :active-value="1" :inactive-value="0" />
           </el-form-item>
         </el-col>
       </el-row>
@@ -284,9 +251,7 @@ async function handleSubmit() {
 
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="submitting" @click="handleSubmit"
-        >保存</el-button
-      >
+      <el-button type="primary" :loading="submitting" @click="handleSubmit">保存</el-button>
     </template>
   </el-dialog>
 </template>

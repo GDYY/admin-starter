@@ -145,7 +145,9 @@ onMounted(async () => {
     <!-- ============ 列表区 ============ -->
     <el-card shadow="never">
       <div class="toolbar">
-        <span class="total">共 <b>{{ total }}</b> 台设备</span>
+        <span class="total"
+          >共 <b>{{ total }}</b> 台设备</span
+        >
         <el-button type="primary" :icon="Plus" @click="handleCreate">新增设备</el-button>
       </div>
 
