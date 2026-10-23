@@ -10,6 +10,7 @@ import {
   HomeFilled,
   Monitor,
   SwitchButton,
+  Tickets,
 } from '@element-plus/icons-vue'
 import type { Component } from 'vue'
 import { useUserStore } from '@/stores/user'
@@ -30,6 +31,7 @@ const menus: { path: string; title: string; icon: Component }[] = [
   // TODO(你的练习): 把下面两行的注释去掉，再写好对应页面
   { path: '/inspect-item', title: '点检项', icon: Document },
   { path: '/inspect-plan', title: '巡检计划', icon: DataLine },
+  { path: '/inspect-task', title: '巡检执行', icon: Tickets },
 ]
 
 async function handleLogout() {
