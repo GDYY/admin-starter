@@ -1,20 +1,11 @@
 /** 巡检执行相关类型定义 */
 
 import type { InspectFrequency } from './inspectPlan'
-
+import type { InspectItem } from './inspectItem'
 /**
  * 今日待巡检任务
  * = 巡检计划 + 设备信息 + 今日状态（执行页列表用）
  */
-
-/** 巡检任务查询条件 */
-export interface InspectTaskQuery {
-  page: number
-  pageSize: number
-  executor?: string
-  finished?: boolean
-}
-
 export interface InspectTask {
   id: number
   planName: string
@@ -31,6 +22,14 @@ export interface InspectTask {
   lastInspectTime: string | null
   /** 今天是否已完成 */
   finished: boolean
+}
+
+/** 巡检任务查询条件 */
+export interface InspectTaskQuery {
+  page: number
+  pageSize: number
+  executor?: string
+  finished?: boolean
 }
 
 /** 提交给接口的结构：主表 + 明细（从表） */
@@ -50,4 +49,11 @@ export interface InspectDetailPayload {
   checkValue: string
   isAbnormal: 0 | 1
   remark: string
+}
+
+/** 表单行 = 点检标准 + 用户填的值 */
+export interface FormRow {
+  item: InspectItem // 标准，只读
+  value: string // 用户填的值，可写
+  remark: string // 异常描述
 }

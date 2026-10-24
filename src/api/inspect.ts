@@ -1,6 +1,7 @@
 import type { InspectTask, InspectTaskQuery } from '@/types/inspect'
-import { PageResult } from '@/types/inspectPlan'
+import type { PageResult } from '@/types/inspectPlan'
 import { inspectTasks } from '@/mock/inspectTaskDb'
+import { inspectItems } from '@/mock/inspectDb'
 
 /** 模拟网络延迟，让 loading 效果能被看见 */
 function delay(ms = 300) {
@@ -28,4 +29,13 @@ export function getExecutorOptions() {
     (name) => name !== '',
   )
   return executors.map((executor) => ({ label: executor, value: executor }))
+}
+
+/** 拉点检项 */
+export async function getInspectItems(category: string) {
+  await delay()
+  return inspectItems
+    .filter((i) => i.category === category && i.status === 1)
+    .sort((a, b) => a.sort - b.sort)
+    .map((i) => ({ ...i })) // 浅拷贝，避免外部修改内存假数据库
 }
