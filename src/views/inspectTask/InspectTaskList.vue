@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Refresh, Search } from '@element-plus/icons-vue'
+import { CircleCheckFilled, CircleCloseFilled, Refresh, Search } from '@element-plus/icons-vue'
 import { getTodayTasks, getExecutorOptions, getInspectItems } from '@/api/inspect'
 import type { InspectTaskQuery, InspectTask, FormRow } from '@/types/inspect'
 import { FREQUENCY_MAP } from '@/types/inspectPlan'
@@ -16,11 +16,11 @@ const query = reactive<InspectTaskQuery>({
 })
 /* ---------------- 列表数据 ---------------- */
 const loading = ref(false)
+const itemsLoading = ref(false)
 const list = ref<InspectTask[]>([])
 const executorOptions = getExecutorOptions()
 const total = ref(0)
 const drawerVisible = ref(false)
-const currentTaskId = ref<number | null>(null)
 const rows = ref<FormRow[]>([])
 const currentTask = ref<InspectTask | null>(null)
 const FREQUENCY_LABELS = {
@@ -67,7 +67,7 @@ async function handleRefresh() {
 // 关闭抽屉时的逻辑
 function onDrawerClose() {
   drawerVisible.value = false
-  currentTaskId.value = null
+  currentTask.value = null
   rows.value = []
 }
 // 获取当前日期
@@ -80,9 +80,9 @@ function getCurrentDate() {
 }
 // 打开抽屉，传入 category
 async function openExecute(category: string, taskId: number) {
-  drawerVisible.value = true
-  currentTaskId.value = taskId
+  itemsLoading.value = true
   currentTask.value = list.value.find((task) => task.id === taskId) ?? null
+
   // 这里可以根据 category 去拉取不同的巡检项
   try {
     rows.value = (await getInspectItems(category)).map((item) => ({
@@ -92,8 +92,42 @@ async function openExecute(category: string, taskId: number) {
     }))
   } catch (e) {
     ElMessage.error((e as Error).message || '查询失败')
+  } finally {
+    itemsLoading.value = false
+    drawerVisible.value = true
   }
 }
+
+/* ---------------- 动态控件 + 异常判定 ---------------- */
+
+/** 行里是否已录入。*/
+function isFilled(row: FormRow): boolean {
+  return row.value.trim() !== ''
+}
+
+/** 异常判定*/
+function isAbnormal(row: FormRow): boolean {
+  const { checkType, minValue, maxValue } = row.item
+
+  // 类型 1：正常/异常
+  if (checkType === 1) return row.value === '异常'
+
+  // 类型 3：文字描述
+  if (checkType !== 2) return false
+
+  // 类型 2：数值超范围才算异常。
+  if (!isFilled(row)) return false
+  const n = Number(row.value)
+  if (!Number.isFinite(n)) return false
+  if (minValue !== null && n < minValue) return true
+  if (maxValue !== null && n > maxValue) return true
+  return false
+}
+
+/** 已填项数：底部统计，输入时实时变 */
+const filledCount = computed(() => rows.value.filter(isFilled).length)
+/** 异常项数 */
+const abnormalCount = computed(() => rows.value.filter((row) => isAbnormal(row)).length)
 
 function frequencyLabel(freq?: number | null): string {
   return freq == null ? '—' : (FREQUENCY_LABELS[freq as InspectFrequency] ?? '—')
@@ -200,7 +234,7 @@ function frequencyLabel(freq?: number | null): string {
       size="45%"
     >
       <el-card shadow="never">
-        <el-descriptions v-if="currentTaskId" border="1" column="2" size="small">
+        <el-descriptions column="2" size="small">
           <el-descriptions-item label="位置">
             {{ currentTask?.location }}
           </el-descriptions-item>
@@ -215,25 +249,81 @@ function frequencyLabel(freq?: number | null): string {
           </el-descriptions-item>
         </el-descriptions>
       </el-card>
-      <el-card shadow="never">
-        <div v-for="(row, index) in rows" :key="row.item.id" class="inspect-row">
-          <div class="row-head">
-            <span class="row-name">{{ index + 1 }}.{{ row.item.itemName }}</span>
+      <el-card shadow="never" v-loading="itemsLoading">
+        <div class="inspect-rows">
+          <div
+            v-for="(row, index) in rows"
+            :key="row.item.id"
+            class="inspect-row"
+            :class="{ 'is-abnormal': isAbnormal(row) }"
+          >
+            <div class="row-head">
+              <span class="row-name">{{ index + 1 }}. {{ row.item.itemName }}</span>
+
+              <div class="row-control">
+                <el-radio-group v-if="row.item.checkType === 1" v-model="row.value">
+                  <el-radio value="正常">正常</el-radio>
+                  <el-radio value="异常">异常</el-radio>
+                </el-radio-group>
+                <el-input
+                  type="number"
+                  v-else-if="row.item.checkType === 2"
+                  v-model="row.value"
+                  placeholder="请输入数值"
+                  style="width: 180px"
+                >
+                  <template #append>{{ row.item.unit }}</template>
+                </el-input>
+
+                <el-input
+                  v-else
+                  v-model="row.value"
+                  placeholder="请描述检查结果"
+                  style="width: 320px"
+                />
+              </div>
+            </div>
+
+            <div class="row-foot">
+              <span class="row-standard">标准：{{ row.item.standard }}</span>
+              <span
+                v-if="isFilled(row)"
+                class="row-result"
+                :class="isAbnormal(row) ? 'is-abnormal' : 'is-normal'"
+              >
+                <el-icon>
+                  <CircleCloseFilled v-if="isAbnormal(row)" />
+                  <CircleCheckFilled v-else />
+                </el-icon>
+                {{ isAbnormal(row) ? '异常' : '正常' }}
+              </span>
+            </div>
+
+            <el-input
+              v-if="isAbnormal(row)"
+              v-model="row.remark"
+              type="textarea"
+              :rows="2"
+              resize="none"
+              placeholder="请描述异常情况（必填）"
+              class="row-remark"
+            />
           </div>
-          <div class="row-standard">标准:{{ row.item.standard }}</div>
-        </div> </el-card
-      ><template #footer>
+        </div>
+      </el-card>
+
+      <template #footer>
         <div class="drawer-footer">
           <span class="stats">
             共<a class="b">{{ rows.length }}</a
-            >项·已填<a class="b">{{ 0 }}</a
-            >项·异常<a class="abnormal">{{ 0 }}</a
+            >项·已填<a class="b">{{ filledCount }}</a
+            >项·异常<a class="abnormal">{{ abnormalCount }}</a
             >项
           </span>
-        </div>
-        <div class="drawer-footer-button">
-          <el-button @click="onDrawerClose()">取消</el-button>
-          <el-button type="primary">保存</el-button>
+          <div>
+            <el-button @click="onDrawerClose()">取消</el-button>
+            <el-button type="primary">保存</el-button>
+          </div>
         </div>
       </template>
     </el-drawer>
@@ -275,13 +365,7 @@ function frequencyLabel(freq?: number | null): string {
   justify-content: flex-end;
   margin-top: 16px;
 }
-.range {
-  font-family: Consolas, Monaco, monospace;
-  color: #409eff;
-}
-.muted {
-  color: #c0c4cc;
-}
+
 /* ---------- 抽屉里的点检项列表 ---------- */
 .inspect-rows {
   display: flex;
@@ -306,21 +390,42 @@ function frequencyLabel(freq?: number | null): string {
   }
 }
 
-/* 第一行：序号 + 项名称 + 判定结果 */
+/* 第一行：项名称（左） + 录入控件（右） */
 .row-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
+  gap: 16px;
+  margin-bottom: 6px;
 }
 
 .row-name {
+  flex: none;
   font-weight: 600;
   color: #303133;
   font-size: 14px;
 }
 
+/* 控件区：靠右排列 */
+.row-control {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+/* 第二行：判定标准（左） + 自动判定结果（右） */
+.row-foot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 20px;
+}
+
 .row-result {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
   font-size: 13px;
 
   &.is-normal {
@@ -333,13 +438,9 @@ function frequencyLabel(freq?: number | null): string {
   }
 }
 
-/* 控件区（步骤 3） */
-.row-control {
-  margin-bottom: 6px;
-}
-
 /* 标准描述：灰色小字 */
 .row-standard {
+  flex: 1;
   color: #909399;
   font-size: 12px;
   line-height: 1.6;
