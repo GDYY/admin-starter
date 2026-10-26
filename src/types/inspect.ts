@@ -51,6 +51,16 @@ export interface InspectDetailPayload {
   remark: string
 }
 
+/** 巡检记录（主表 + 明细）：提交成功后落进 mock，供后续「查看」用 */
+export interface InspectRecord extends InspectSubmitPayload {
+  id: number
+  /** 冗余设备信息：记录页不用再关联任务表 */
+  deviceCode: string
+  deviceName: string
+  /** 提交时刻；inspectTime 是巡检时间，补录时两者不同 */
+  createdAt: string
+}
+
 /** 表单行 = 点检标准 + 用户填的值 */
 export interface FormRow {
   item: InspectItem // 标准，只读

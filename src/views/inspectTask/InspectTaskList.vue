@@ -2,8 +2,13 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { CircleCheckFilled, CircleCloseFilled, Refresh, Search } from '@element-plus/icons-vue'
-import { getTodayTasks, getExecutorOptions, getInspectItems } from '@/api/inspect'
-import type { InspectTaskQuery, InspectTask, FormRow } from '@/types/inspect'
+import {
+  getTodayTasks,
+  getExecutorOptions,
+  getInspectItems,
+  submitInspectRecord,
+} from '@/api/inspect'
+import type { InspectTaskQuery, InspectTask, FormRow, InspectSubmitPayload } from '@/types/inspect'
 import { FREQUENCY_MAP } from '@/types/inspectPlan'
 import type { InspectFrequency } from '@/types/inspectPlan'
 
@@ -23,6 +28,8 @@ const total = ref(0)
 const drawerVisible = ref(false)
 const rows = ref<FormRow[]>([])
 const currentTask = ref<InspectTask | null>(null)
+const submitting = ref(false)
+const formRemark = ref<string>('')
 const FREQUENCY_LABELS = {
   1: '每日点检',
   2: '每周点检',
@@ -67,8 +74,13 @@ async function handleRefresh() {
 // 关闭抽屉时的逻辑
 function onDrawerClose() {
   drawerVisible.value = false
+}
+
+/** 关闭动画结束后再清状态 */
+function resetDrawer() {
   currentTask.value = null
   rows.value = []
+  formRemark.value = ''
 }
 // 获取当前日期
 function getCurrentDate() {
@@ -131,6 +143,56 @@ const abnormalCount = computed(() => rows.value.filter((row) => isAbnormal(row))
 
 function frequencyLabel(freq?: number | null): string {
   return freq == null ? '—' : (FREQUENCY_LABELS[freq as InspectFrequency] ?? '—')
+}
+/** 提交前校验 */
+function validate(): string | null {
+  if (rows.value.length === 0) return '没有可巡检的点检项'
+  for (const row of rows.value) {
+    if (row.value === '' || row.value === null || row.value === undefined) {
+      return `「${row.item.itemName}」还没有填写`
+    }
+    if (isAbnormal(row) && !row.remark.trim()) {
+      return `「${row.item.itemName}」判定为异常，请填写异常描述`
+    }
+  }
+  return null
+}
+async function handleSubmit() {
+  const err = validate()
+  if (err) {
+    ElMessage.warning(err)
+    return
+  }
+  const task = currentTask.value
+  if (!task) {
+    ElMessage.warning('任务数据已失效，请重新打开')
+    return
+  }
+  const payload: InspectSubmitPayload = {
+    planId: task.id,
+    deviceId: task.deviceId,
+    inspectTime: new Date().toLocaleString('zh-CN', { hour12: false }),
+    remark: formRemark.value,
+    details: rows.value.map((row) => ({
+      itemId: row.item.id,
+      itemName: row.item.itemName, // 冗余存名字：以后标准改名，历史记录仍显示当时的名字
+      checkValue: String(row.value),
+      isAbnormal: isAbnormal(row) ? 1 : 0,
+      remark: row.remark,
+    })),
+  }
+
+  submitting.value = true
+  try {
+    await submitInspectRecord(payload)
+    ElMessage.success('巡检结果已提交')
+    onDrawerClose()
+    await loadData()
+  } catch (e) {
+    ElMessage.error((e as Error).message || '提交失败')
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 
@@ -228,7 +290,7 @@ function frequencyLabel(freq?: number | null): string {
       </div>
     </el-card>
     <el-drawer
-      @close="onDrawerClose"
+      @closed="resetDrawer"
       :title="'执行巡检 —— ' + currentTask?.deviceName + '(' + currentTask?.deviceCode + ')'"
       v-model="drawerVisible"
       size="45%"
@@ -309,6 +371,14 @@ function frequencyLabel(freq?: number | null): string {
               class="row-remark"
             />
           </div>
+          <el-input
+            v-model="formRemark"
+            type="textarea"
+            :rows="2"
+            resize="none"
+            placeholder="本次巡检备注(选填)"
+            class="row-remark"
+          />
         </div>
       </el-card>
 
@@ -321,8 +391,10 @@ function frequencyLabel(freq?: number | null): string {
             >项
           </span>
           <div>
-            <el-button @click="onDrawerClose()">取消</el-button>
-            <el-button type="primary">保存</el-button>
+            <el-button :disabled="submitting" @click="onDrawerClose()">取消</el-button>
+            <el-button type="primary" :loading="submitting" @click="handleSubmit()"
+              >提交巡检</el-button
+            >
           </div>
         </div>
       </template>

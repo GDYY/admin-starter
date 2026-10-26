@@ -28,3 +28,11 @@ export const inspectTasks: InspectTask[] = inspectPlans
       finished,
     }
   })
+
+/** 把源任务标记为已完成 */
+export function markTaskFinished(taskId: number, time: string) {
+  const task = inspectTasks.find((t) => t.id === taskId)
+  if (!task) throw new Error('巡检任务不存在，请刷新列表')
+  task.finished = true
+  task.lastInspectTime = time
+}

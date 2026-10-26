@@ -1,7 +1,8 @@
-import type { InspectTask, InspectTaskQuery } from '@/types/inspect'
+import type { InspectTask, InspectTaskQuery, InspectSubmitPayload } from '@/types/inspect'
 import type { PageResult } from '@/types/inspectPlan'
-import { inspectTasks } from '@/mock/inspectTaskDb'
+import { inspectTasks, markTaskFinished } from '@/mock/inspectTaskDb'
 import { inspectItems } from '@/mock/inspectDb'
+import { inspectRecords, useNextId } from '@/mock/inspectRecordDb'
 
 /** 模拟网络延迟，让 loading 效果能被看见 */
 function delay(ms = 300) {
@@ -38,4 +39,22 @@ export async function getInspectItems(category: string) {
     .filter((i) => i.category === category && i.status === 1)
     .sort((a, b) => a.sort - b.sort)
     .map((i) => ({ ...i })) // 浅拷贝，避免外部修改内存假数据库
+}
+
+/** 提交巡检 */
+export async function submitInspectRecord(payload: InspectSubmitPayload): Promise<void> {
+  await delay()
+
+  const task = inspectTasks.find((t) => t.id === payload.planId)
+  if (!task) throw new Error('巡检任务不存在，请刷新列表')
+
+  markTaskFinished(task.id, payload.inspectTime)
+
+  inspectRecords.unshift({
+    ...payload,
+    id: useNextId(),
+    deviceCode: task.deviceCode,
+    deviceName: task.deviceName,
+    createdAt: new Date().toLocaleString('zh-CN', { hour12: false }),
+  })
 }
