@@ -7,8 +7,15 @@ import {
   getExecutorOptions,
   getInspectItems,
   submitInspectRecord,
+  getInspectRecordByTask,
 } from '@/api/inspect'
-import type { InspectTaskQuery, InspectTask, FormRow, InspectSubmitPayload } from '@/types/inspect'
+import type {
+  InspectTaskQuery,
+  InspectTask,
+  FormRow,
+  InspectSubmitPayload,
+  InspectRecord,
+} from '@/types/inspect'
 import { FREQUENCY_MAP } from '@/types/inspectPlan'
 import type { InspectFrequency } from '@/types/inspectPlan'
 
@@ -30,6 +37,8 @@ const rows = ref<FormRow[]>([])
 const currentTask = ref<InspectTask | null>(null)
 const submitting = ref(false)
 const formRemark = ref<string>('')
+const record = ref<InspectRecord | null>(null)
+const detailReadonly = ref(false)
 const FREQUENCY_LABELS = {
   1: '每日点检',
   2: '每周点检',
@@ -81,9 +90,14 @@ function resetDrawer() {
   currentTask.value = null
   rows.value = []
   formRemark.value = ''
+  detailReadonly.value = false
+  record.value = null
 }
 // 获取当前日期
 function getCurrentDate() {
+  if (detailReadonly.value === true) {
+    return record.value?.inspectTime
+  }
   const now = new Date()
   const year = now.getFullYear()
   const month = String(now.getMonth() + 1).padStart(2, '0')
@@ -109,7 +123,25 @@ async function openExecute(category: string, taskId: number) {
     drawerVisible.value = true
   }
 }
-
+async function openDetail(category: string, taskId: number) {
+  itemsLoading.value = true
+  try {
+    const data = await getInspectRecordByTask(taskId)
+    if (!data) {
+      ElMessage.warning('该任务还没有巡检记录')
+      return
+    }
+    record.value = data
+    detailReadonly.value = true
+    currentTask.value = list.value.find((task) => task.id === taskId) ?? null
+    formRemark.value = record.value.remark
+    drawerVisible.value = true
+  } catch (e) {
+    ElMessage.error((e as Error).message || '查询失败')
+  } finally {
+    itemsLoading.value = false
+  }
+}
 /* ---------------- 动态控件 + 异常判定 ---------------- */
 
 /** 行里是否已录入。*/
@@ -137,10 +169,21 @@ function isAbnormal(row: FormRow): boolean {
 }
 
 /** 已填项数：底部统计，输入时实时变 */
-const filledCount = computed(() => rows.value.filter(isFilled).length)
+const filledCount = computed(() =>
+  detailReadonly.value ? (record.value?.details.length ?? 0) : rows.value.filter(isFilled).length,
+)
 /** 异常项数 */
-const abnormalCount = computed(() => rows.value.filter((row) => isAbnormal(row)).length)
-
+const abnormalCount = computed(() =>
+  detailReadonly.value
+    ? record.value?.details.filter((detail) => detail.isAbnormal === 1).length
+    : rows.value.filter((row) => isAbnormal(row)).length,
+)
+/** 抽屉标题 */
+const drawerTitle = computed(() => {
+  const name = currentTask.value?.deviceName ?? ''
+  const code = currentTask.value?.deviceCode ?? ''
+  return `${detailReadonly.value ? '查看巡检' : '执行巡检'} —— ${name}(${code})`
+})
 function frequencyLabel(freq?: number | null): string {
   return freq == null ? '—' : (FREQUENCY_LABELS[freq as InspectFrequency] ?? '—')
 }
@@ -148,7 +191,7 @@ function frequencyLabel(freq?: number | null): string {
 function validate(): string | null {
   if (rows.value.length === 0) return '没有可巡检的点检项'
   for (const row of rows.value) {
-    if (row.value === '' || row.value === null || row.value === undefined) {
+    if (row.value === '') {
       return `「${row.item.itemName}」还没有填写`
     }
     if (isAbnormal(row) && !row.remark.trim()) {
@@ -266,7 +309,7 @@ async function handleSubmit() {
               v-if="row.finished"
               link
               type="primary"
-              @click="ElMessage.info('查看功能下一步实现')"
+              @click="openDetail(row.category, row.id)"
               >查看</el-button
             >
             <el-button v-else link type="primary" @click="openExecute(row.category, row.id)"
@@ -289,12 +332,7 @@ async function handleSubmit() {
         />
       </div>
     </el-card>
-    <el-drawer
-      @closed="resetDrawer"
-      :title="'执行巡检 —— ' + currentTask?.deviceName + '(' + currentTask?.deviceCode + ')'"
-      v-model="drawerVisible"
-      size="45%"
-    >
+    <el-drawer @closed="resetDrawer" :title="drawerTitle" v-model="drawerVisible" size="45%">
       <el-card shadow="never">
         <el-descriptions column="2" size="small">
           <el-descriptions-item label="位置">
@@ -312,7 +350,7 @@ async function handleSubmit() {
         </el-descriptions>
       </el-card>
       <el-card shadow="never" v-loading="itemsLoading">
-        <div class="inspect-rows">
+        <div class="inspect-rows" v-if="!detailReadonly">
           <div
             v-for="(row, index) in rows"
             :key="row.item.id"
@@ -380,19 +418,58 @@ async function handleSubmit() {
             class="row-remark"
           />
         </div>
+
+        <div class="inspect-rows" v-else>
+          <div
+            v-for="(row, index) in record?.details"
+            :key="row.itemId"
+            class="inspect-row"
+            :class="{ 'is-abnormal': row.isAbnormal === 1 }"
+          >
+            <div class="row-head">
+              <span class="row-name">{{ index + 1 }}. {{ row.itemName }}</span>
+              <span class="row-control">{{ row.checkValue }}</span>
+            </div>
+
+            <div class="row-foot">
+              <span class="row-result" :class="row.isAbnormal === 1 ? 'is-abnormal' : 'is-normal'">
+                <el-icon>
+                  <CircleCloseFilled v-if="row.isAbnormal === 1" />
+                  <CircleCheckFilled v-else />
+                </el-icon>
+                {{ row.isAbnormal === 1 ? '异常' : '正常' }}
+              </span>
+            </div>
+
+            <div v-if="row.remark" class="row-remark">{{ row.remark }}</div>
+          </div>
+          <el-input
+            :readonly="detailReadonly"
+            v-model="formRemark"
+            type="textarea"
+            :rows="2"
+            resize="none"
+            placeholder="本次巡检备注(选填)"
+            class="row-remark"
+          />
+        </div>
       </el-card>
 
       <template #footer>
         <div class="drawer-footer">
           <span class="stats">
-            共<a class="b">{{ rows.length }}</a
+            共<a class="b">{{ record?.details.length }}</a
             >项·已填<a class="b">{{ filledCount }}</a
             >项·异常<a class="abnormal">{{ abnormalCount }}</a
             >项
           </span>
           <div>
             <el-button :disabled="submitting" @click="onDrawerClose()">取消</el-button>
-            <el-button type="primary" :loading="submitting" @click="handleSubmit()"
+            <el-button
+              v-if="!detailReadonly"
+              type="primary"
+              :loading="submitting"
+              @click="handleSubmit()"
               >提交巡检</el-button
             >
           </div>

@@ -58,3 +58,7 @@ export async function submitInspectRecord(payload: InspectSubmitPayload): Promis
     createdAt: new Date().toLocaleString('zh-CN', { hour12: false }),
   })
 }
+export async function getInspectRecordByTask(taskId: number) {
+  await delay()
+  return inspectRecords.find((t) => t.planId === taskId) ?? null
+}
