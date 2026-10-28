@@ -464,7 +464,9 @@ async function handleSubmit() {
             >项
           </span>
           <div>
-            <el-button :disabled="submitting" @click="onDrawerClose()">取消</el-button>
+            <el-button :disabled="submitting" @click="onDrawerClose()">{{
+              detailReadonly ? '关闭' : '取消'
+            }}</el-button>
             <el-button
               v-if="!detailReadonly"
               type="primary"
