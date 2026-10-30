@@ -1,16 +1,46 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getDashboardOverview } from '@/api/dashboard'
-import type { DashboardOverview } from '@/types/dashboard'
+import { getDashboardOverview, getDashboardTrend } from '@/api/dashboard'
+import type { DashboardOverview, DashboardTrendPoint } from '@/types/dashboard'
+import EChart from '@/components/EChart.vue'
+import type { EChartsOption } from 'echarts'
 
 const loading = ref(false)
 const overview = ref<DashboardOverview | null>(null)
+const trend = ref<DashboardTrendPoint[]>([])
+const trendOption = computed<EChartsOption>(() => ({
+  tooltip: { trigger: 'axis' },
+  grid: { left: 48, right: 24, top: 32, bottom: 32 },
+  xAxis: {
+    type: 'category',
+    data: trend.value.map((t) => t.date.slice(5)),
+  },
+  yAxis: {
+    type: 'value',
+    minInterval: 1,
+  },
+  series: [
+    {
+      type: 'line',
+      data: trend.value.map((t) => t.count),
+      smooth: true,
+      symbolSize: 6,
+      itemStyle: { color: '#409eff' },
+      areaStyle: { opacity: 0.08 },
+    },
+  ],
+}))
 
-async function loadOverview() {
+async function loadAll() {
   loading.value = true
   try {
-    overview.value = await getDashboardOverview()
+    const [overviewRes, trendRes] = await Promise.all([
+      getDashboardOverview(),
+      getDashboardTrend(7),
+    ])
+    overview.value = overviewRes
+    trend.value = trendRes
   } catch (e) {
     ElMessage.error((e as Error).message || '加载失败')
   } finally {
@@ -18,7 +48,7 @@ async function loadOverview() {
   }
 }
 
-onMounted(loadOverview)
+onMounted(loadAll)
 </script>
 
 <template>
@@ -58,12 +88,12 @@ onMounted(loadOverview)
       </el-col>
     </el-row>
 
-    <!-- 步骤 3 / 4：两个图表占位 -->
+    <!-- 步骤 4：一个图表占位 -->
     <el-row :gutter="16">
       <el-col :xs="24" :md="16">
         <el-card shadow="never">
           <template #header>近 7 天异常趋势</template>
-          <div class="chart-placeholder">步骤 3 在这里放折线图</div>
+          <EChart :option="trendOption" height="320px" />
         </el-card>
       </el-col>
       <el-col :xs="24" :md="8">

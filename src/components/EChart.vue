@@ -16,6 +16,14 @@ onMounted(() => {
   observer.observe(el.value)
 })
 
+watch(
+  () => props.option,
+  (option) => {
+    chart?.setOption(option, { notMerge: true })
+  },
+  { deep: true },
+)
+
 onBeforeUnmount(() => {
   observer?.disconnect()
   observer = null
