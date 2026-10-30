@@ -1,86 +1,122 @@
 <script setup lang="ts">
-import { useUserStore } from '@/stores/user'
+import { onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
+import { getDashboardOverview } from '@/api/dashboard'
+import type { DashboardOverview } from '@/types/dashboard'
 
-const userStore = useUserStore()
+const loading = ref(false)
+const overview = ref<DashboardOverview | null>(null)
 
-const stack = [
-  { name: 'Vue 3', desc: 'Composition API + <script setup>' },
-  { name: 'TypeScript', desc: '类型标注与接口定义' },
-  { name: 'Vite', desc: '开发服务器与打包' },
-  { name: 'Vue Router', desc: '路由与登录守卫' },
-  { name: 'Pinia', desc: '状态管理' },
-  { name: 'Element Plus', desc: 'UI 组件库（中文语言包已装）' },
-  { name: 'Axios', desc: '请求封装与拦截器' },
-  { name: 'Sass', desc: '样式预处理' },
-]
+async function loadOverview() {
+  loading.value = true
+  try {
+    overview.value = await getDashboardOverview()
+  } catch (e) {
+    ElMessage.error((e as Error).message || '加载失败')
+  } finally {
+    loading.value = false
+  }
+}
 
-const todos = [
-  '把 LoginView 里的假登录换成真实的登录接口',
-  '在 router/index.ts 里加你的第一个业务路由',
-  '在 BasicLayout 里加对应的菜单项',
-  '写一个列表页：表格 + 分页 + 搜索 + 新增/编辑弹窗',
-  '在 utils/request.ts 里补上业务码判断和 401 处理',
-]
+onMounted(loadOverview)
 </script>
 
 <template>
-  <div class="home">
-    <el-card shadow="never" class="welcome">
-      <h2>欢迎回来，{{ userStore.userInfo?.name || '开发者' }} 👋</h2>
-      <p>这是你的后台骨架，所有基础设施都已经接好了。接下来往里面填业务就行。</p>
-    </el-card>
-
-    <el-card shadow="never" class="block">
-      <template #header><b>技术栈</b></template>
-      <el-row :gutter="12">
-        <el-col v-for="item in stack" :key="item.name" :xs="24" :sm="12" :md="8" :lg="6">
-          <div class="tech">
-            <div class="tech-name">{{ item.name }}</div>
-            <div class="tech-desc">{{ item.desc }}</div>
+  <div v-loading="loading" class="dashboard">
+    <el-row :gutter="16">
+      <el-col :xs="24" :sm="12" :md="6">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-label">设备总数</div>
+          <div class="stat-value">
+            {{ overview?.deviceTotal ?? '—' }}<span class="stat-unit">台</span>
           </div>
-        </el-col>
-      </el-row>
-    </el-card>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="12" :md="6">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-label">今日应巡检</div>
+          <div class="stat-value is-primary">
+            {{ overview?.taskTotal ?? '—' }}<span class="stat-unit">项</span>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="12" :md="6">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-label">今日已完成</div>
+          <div class="stat-value is-success">
+            {{ overview?.finishedCount ?? '—' }}<span class="stat-unit">项</span>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="12" :md="6">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-label">今日异常</div>
+          <div class="stat-value is-danger">
+            {{ overview?.abnormalCount ?? '—' }}<span class="stat-unit">项</span>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
 
-    <el-card shadow="never" class="block">
-      <template #header><b>接下来练什么（按顺序做）</b></template>
-      <el-timeline>
-        <el-timeline-item v-for="(t, i) in todos" :key="i" :timestamp="`第 ${i + 1} 步`" placement="top">
-          {{ t }}
-        </el-timeline-item>
-      </el-timeline>
-    </el-card>
+    <!-- 步骤 3 / 4：两个图表占位 -->
+    <el-row :gutter="16">
+      <el-col :xs="24" :md="16">
+        <el-card shadow="never">
+          <template #header>近 7 天异常趋势</template>
+          <div class="chart-placeholder">步骤 3 在这里放折线图</div>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :md="8">
+        <el-card shadow="never">
+          <template #header>设备类型分布</template>
+          <div class="chart-placeholder">步骤 4 在这里放环形图</div>
+        </el-card>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
 <style scoped lang="scss">
-.home {
+.dashboard {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.welcome h2 {
-  margin: 0 0 8px;
-}
-.welcome p {
-  margin: 0;
-  color: #606266;
+.stat-card {
+  .stat-label {
+    color: #909399;
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+  .stat-value {
+    font-size: 30px;
+    font-weight: 600;
+    color: #303133;
+    &.is-primary {
+      color: #409eff;
+    }
+    &.is-success {
+      color: #67c23a;
+    }
+    &.is-danger {
+      color: #f56c6c;
+    }
+  }
+  .stat-unit {
+    margin-left: 4px;
+    font-size: 12px;
+    font-weight: 400;
+    color: #c0c4cc;
+  }
 }
 
-.tech {
-  padding: 12px;
-  margin-bottom: 12px;
-  border: 1px solid #ebeef5;
-  border-radius: 6px;
-  background: #fafcff;
-}
-.tech-name {
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-.tech-desc {
-  font-size: 12px;
-  color: #909399;
+.chart-placeholder {
+  height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c0c4cc;
+  font-size: 13px;
 }
 </style>
