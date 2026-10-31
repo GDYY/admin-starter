@@ -1,14 +1,20 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getDashboardOverview, getDashboardTrend } from '@/api/dashboard'
-import type { DashboardOverview, DashboardTrendPoint } from '@/types/dashboard'
+import { getDashboardOverview, getDashboardTrend, getDashboardCategory } from '@/api/dashboard'
+import type {
+  DashboardOverview,
+  DashboardTrendPoint,
+  DashboardCategoryItem,
+} from '@/types/dashboard'
 import EChart from '@/components/EChart.vue'
 import type { EChartsOption } from 'echarts'
 
 const loading = ref(false)
 const overview = ref<DashboardOverview | null>(null)
 const trend = ref<DashboardTrendPoint[]>([])
+const category = ref<DashboardCategoryItem[]>([])
+
 const trendOption = computed<EChartsOption>(() => ({
   tooltip: { trigger: 'axis' },
   grid: { left: 48, right: 24, top: 32, bottom: 32 },
@@ -31,16 +37,35 @@ const trendOption = computed<EChartsOption>(() => ({
     },
   ],
 }))
-
+const categoryOption = computed<EChartsOption>(() => ({
+  tooltip: { trigger: 'item', formatter: '{b}：{c} 台（{d}%）' },
+  legend: { bottom: 0 },
+  series: [
+    {
+      type: 'pie',
+      radius: ['42%', '68%'],
+      center: ['50%', '45%'],
+      avoidLabelOverlap: true,
+      itemStyle: { borderColor: '#fff', borderWidth: 2 },
+      label: { show: false },
+      emphasis: {
+        label: { show: false },
+      },
+      data: category.value.map((c) => ({ name: c.category, value: c.count })),
+    },
+  ],
+}))
 async function loadAll() {
   loading.value = true
   try {
-    const [overviewRes, trendRes] = await Promise.all([
+    const [overviewRes, trendRes, categoryRes] = await Promise.all([
       getDashboardOverview(),
       getDashboardTrend(7),
+      getDashboardCategory(),
     ])
     overview.value = overviewRes
     trend.value = trendRes
+    category.value = categoryRes
   } catch (e) {
     ElMessage.error((e as Error).message || '加载失败')
   } finally {
@@ -88,7 +113,6 @@ onMounted(loadAll)
       </el-col>
     </el-row>
 
-    <!-- 步骤 4：一个图表占位 -->
     <el-row :gutter="16">
       <el-col :xs="24" :md="16">
         <el-card shadow="never">
@@ -99,7 +123,7 @@ onMounted(loadAll)
       <el-col :xs="24" :md="8">
         <el-card shadow="never">
           <template #header>设备类型分布</template>
-          <div class="chart-placeholder">步骤 4 在这里放环形图</div>
+          <EChart :option="categoryOption" height="320px" />
         </el-card>
       </el-col>
     </el-row>
@@ -139,14 +163,5 @@ onMounted(loadAll)
     font-weight: 400;
     color: #c0c4cc;
   }
-}
-
-.chart-placeholder {
-  height: 320px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #c0c4cc;
-  font-size: 13px;
 }
 </style>
