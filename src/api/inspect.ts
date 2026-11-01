@@ -1,4 +1,11 @@
-import type { InspectTask, InspectTaskQuery, InspectSubmitPayload } from '@/types/inspect'
+import type {
+  InspectRecord,
+  InspectRecordQuery,
+  InspectRecordRow,
+  InspectTask,
+  InspectTaskQuery,
+  InspectSubmitPayload,
+} from '@/types/inspect'
 import type { PageResult } from '@/types/inspectPlan'
 import { inspectTasks, markTaskFinished } from '@/mock/inspectTaskDb'
 import { inspectItems } from '@/mock/inspectDb'
@@ -55,10 +62,93 @@ export async function submitInspectRecord(payload: InspectSubmitPayload): Promis
     id: useNextId(),
     deviceCode: task.deviceCode,
     deviceName: task.deviceName,
+    executor: task.executor,
     createdAt: new Date().toLocaleString('zh-CN', { hour12: false }),
   })
 }
 export async function getInspectRecordByTask(taskId: number) {
   await delay()
   return inspectRecords.find((t) => t.planId === taskId) ?? null
+}
+
+/* ---------------- 巡检记录（记录页用） ---------------- */
+
+/** 记录 → 列表行：统计字段由接口层算好，页面不再自己遍历明细 */
+function toRow(record: InspectRecord): InspectRecordRow {
+  const abnormalCount = record.details.filter((d) => d.isAbnormal === 1).length
+  return {
+    ...record,
+    details: record.details.map((d) => ({ ...d })),
+    abnormalCount,
+    result: abnormalCount > 0 ? 2 : 1,
+  }
+}
+
+/** 兼容 '2026-10-23 09:15' 与 '2026/11/1 18:48:21' 两种时间格式 */
+function parseInspectTime(value: string): Date | null {
+  const matched = value.match(
+    /(\d{4})[-/](\d{1,2})[-/](\d{1,2})[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/,
+  )
+  if (!matched) return null
+  const [, year, month, day, hour, minute, second] = matched
+  return new Date(+year, +month - 1, +day, +hour, +minute, second ? +second : 0)
+}
+
+/** 取本地日期 YYYY-MM-DD：日期范围按天比，不比时间 */
+function toDay(value: string): string {
+  const date = parseInspectTime(value)
+  if (!date) return ''
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+function timestampOf(value: string): number {
+  return parseInspectTime(value)?.getTime() ?? 0
+}
+
+/** 巡检记录分页查询：关键字 / 执行人 / 结果 / 日期范围 */
+export async function getInspectRecords(
+  query: InspectRecordQuery,
+): Promise<PageResult<InspectRecordRow>> {
+  await delay()
+  let list = inspectRecords.map(toRow)
+
+  const keyword = query.keyword?.trim().toLowerCase()
+  if (keyword) {
+    list = list.filter((r) => `${r.deviceCode} ${r.deviceName}`.toLowerCase().includes(keyword))
+  }
+  if (query.executor) list = list.filter((r) => r.executor === query.executor)
+  if (query.result !== undefined && query.result !== '') {
+    list = list.filter((r) => r.result === query.result)
+  }
+  if (query.dateRange && query.dateRange.length === 2) {
+    const [from, to] = query.dateRange
+    list = list.filter((r) => {
+      const day = toDay(r.inspectTime)
+      return day !== '' && day >= from && day <= to
+    })
+  }
+
+  // 最近的排最前：新提交的会 unshift 到数组头，历史记录同样按时间走
+  list.sort((a, b) => timestampOf(b.inspectTime) - timestampOf(a.inspectTime))
+
+  const total = list.length
+  const start = (query.page - 1) * query.pageSize
+  return { list: list.slice(start, start + query.pageSize), total }
+}
+
+/** 记录详情（含明细）。列表已经带了明细，这里留接口函数：换真后端时页面不用改 */
+export async function getInspectRecordById(id: number): Promise<InspectRecordRow | null> {
+  await delay()
+  const target = inspectRecords.find((r) => r.id === id)
+  return target ? toRow(target) : null
+}
+
+/** 执行人下拉：从已有记录里取，不写死 */
+export function getRecordExecutorOptions() {
+  const executors = Array.from(new Set(inspectRecords.map((r) => r.executor))).filter(
+    (name) => name !== '',
+  )
+  return executors.map((executor) => ({ label: executor, value: executor }))
 }
