@@ -25,6 +25,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/device/DeviceList.vue'),
         meta: { title: '设备台账' },
       },
+      // TODO(你的练习): 照着上面抄两个 —— 点检项 / 巡检计划
       {
         path: 'inspect-item',
         name: 'inspect-item',
@@ -42,12 +43,6 @@ const routes: RouteRecordRaw[] = [
         name: 'inspect-task',
         component: () => import('@/views/inspectTask/InspectTaskList.vue'),
         meta: { title: '巡检执行' },
-      },
-      {
-        path: 'inspect-record',
-        name: 'inspect-record',
-        component: () => import('@/views/inspectRecord/InspectRecordList.vue'),
-        meta: { title: '巡检记录' },
       },
     ],
   },
