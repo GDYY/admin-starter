@@ -8,6 +8,7 @@ import {
   Expand,
   Fold,
   HomeFilled,
+  List,
   Monitor,
   SwitchButton,
   Tickets,
@@ -28,10 +29,10 @@ const isCollapse = ref(false)
 const menus: { path: string; title: string; icon: Component }[] = [
   { path: '/home', title: '首页', icon: HomeFilled },
   { path: '/device', title: '设备台账', icon: Monitor },
-  // TODO(你的练习): 把下面两行的注释去掉，再写好对应页面
   { path: '/inspect-item', title: '点检项', icon: Document },
   { path: '/inspect-plan', title: '巡检计划', icon: DataLine },
   { path: '/inspect-task', title: '巡检执行', icon: Tickets },
+  { path: '/inspect-record', title: '巡检记录', icon: List },
 ]
 
 async function handleLogout() {
