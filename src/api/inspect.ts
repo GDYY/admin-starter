@@ -56,6 +56,7 @@ export async function submitInspectRecord(payload: InspectSubmitPayload): Promis
     deviceCode: task.deviceCode,
     deviceName: task.deviceName,
     createdAt: new Date().toLocaleString('zh-CN', { hour12: false }),
+    executor: task.executor,
   })
 }
 export async function getInspectRecordByTask(taskId: number) {

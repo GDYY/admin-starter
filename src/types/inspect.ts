@@ -59,6 +59,7 @@ export interface InspectRecord extends InspectSubmitPayload {
   deviceName: string
   /** 提交时刻；inspectTime 是巡检时间，补录时两者不同 */
   createdAt: string
+  executor: string
 }
 
 /** 表单行 = 点检标准 + 用户填的值 */
