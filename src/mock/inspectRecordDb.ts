@@ -3,6 +3,9 @@ import { inspectItems } from '@/mock/inspectDb'
 import { inspectTasks } from '@/mock/inspectTaskDb'
 import { devices } from '@/mock/db'
 
+/** 两位补零 */
+const pad = (n: number) => String(n).padStart(2, '0')
+
 /** 假数据 */
 function buildDetails(category: string, abnormal = false): InspectDetailPayload[] {
   const items = inspectItems
@@ -48,8 +51,11 @@ function buildDetails(category: string, abnormal = false): InspectDetailPayload[
   })
 }
 
-/** 历史记录的日期：10-10 ~ 10-22 每天一条，共 13 条 */
-const HISTORY_DATES = Array.from({ length: 13 }, (_, i) => `2026-10-${10 + i}`)
+/** 历史记录的日期：从 2026-10-10 起每天一条，跨月自动进位 */
+const HISTORY_DATES = Array.from({ length: 13 }, (_, i) => {
+  const date = new Date(2026, 9, 10 + i)
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+})
 /** 巡检时间轮换，避免 13 条记录时间点全一样 */
 const HISTORY_TIMES = ['08:40', '09:25', '10:10', '13:35', '14:20', '15:05', '16:40']
 const HISTORY_EXECUTORS = [...new Set(inspectTasks.map((t) => t.executor))].filter(Boolean)
@@ -83,7 +89,6 @@ function addMinutes(time: string, minutes: number): string {
   const [date, clock] = time.split(' ')
   const stamp = new Date(`${date}T${clock}:00`)
   stamp.setMinutes(stamp.getMinutes() + minutes)
-  const pad = (n: number) => String(n).padStart(2, '0')
   return `${stamp.getFullYear()}-${pad(stamp.getMonth() + 1)}-${pad(stamp.getDate())} ${pad(
     stamp.getHours(),
   )}:${pad(stamp.getMinutes())}`
