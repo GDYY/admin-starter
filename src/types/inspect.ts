@@ -2,6 +2,10 @@
 
 import type { InspectFrequency } from './inspectPlan'
 import type { InspectItem } from './inspectItem'
+
+/** 巡检结果：1=全部正常 2=存在异常 */
+export type InspectResult = 1 | 2
+
 /**
  * 今日待巡检任务
  * = 巡检计划 + 设备信息 + 今日状态（执行页列表用）
@@ -67,4 +71,19 @@ export interface FormRow {
   item: InspectItem // 标准，只读
   value: string // 用户填的值，可写
   remark: string // 异常描述
+}
+/** 查询条件：跟巡检计划那套保持一致 */
+export interface InspectRecordQuery {
+  page: number
+  pageSize: number
+  keyword?: string // 设备编号 / 名称
+  executor?: string
+  result?: InspectResult | '' // 结果筛选
+  dateRange?: string[] // ['2026-10-18', '2026-10-24']，两个日期
+}
+
+/** 记录列表行 */
+export interface InspectRecordRow extends InspectRecord {
+  abnormalCount: number
+  result: InspectResult
 }
