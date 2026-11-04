@@ -8,6 +8,7 @@ import {
   Expand,
   Fold,
   HomeFilled,
+  List,
   Monitor,
   SwitchButton,
   Tickets,
@@ -32,6 +33,7 @@ const menus: { path: string; title: string; icon: Component }[] = [
   { path: '/inspect-item', title: '点检项', icon: Document },
   { path: '/inspect-plan', title: '巡检计划', icon: DataLine },
   { path: '/inspect-task', title: '巡检执行', icon: Tickets },
+  { path: '/inspect-record', title: '巡检记录', icon: List },
 ]
 
 async function handleLogout() {

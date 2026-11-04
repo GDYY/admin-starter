@@ -44,6 +44,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/inspectTask/InspectTaskList.vue'),
         meta: { title: '巡检执行' },
       },
+      {
+        path: 'inspect-record',
+        name: 'inspect-record',
+        component: () => import('@/views/inspectRecord/InspectRecordList.vue'),
+        meta: { title: '巡检记录' },
+      },
     ],
   },
   {

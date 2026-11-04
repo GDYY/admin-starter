@@ -87,3 +87,13 @@ export interface InspectRecordRow extends InspectRecord {
   abnormalCount: number
   result: InspectResult
 }
+export const RESULT_MAP: Record<InspectResult, { label: string; type: 'success' | 'danger' }> = {
+  1: { label: '全部正常', type: 'success' },
+  2: { label: '存在异常', type: 'danger' },
+}
+export const RESULT_OPTIONS = (Object.keys(RESULT_MAP) as unknown as InspectResult[]).map(
+  (key) => ({
+    value: Number(key) as InspectResult,
+    label: RESULT_MAP[Number(key) as InspectResult].label,
+  }),
+)
