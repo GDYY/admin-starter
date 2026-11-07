@@ -155,7 +155,7 @@ onMounted(() => {
         <el-button type="primary" @click="handleRefresh">刷新</el-button>
       </div>
 
-      <el-table v-loading="loading" :data="list" border stripe>
+      <el-table v-loading="loading" :data="list" border stripe empty-text="没有符合条件的记录">
         <el-table-column
           type="index"
           label="序号"
