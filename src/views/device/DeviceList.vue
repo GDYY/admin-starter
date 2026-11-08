@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { deleteDevice, getCategoryOptions, getDevicePage } from '@/api/device'
 import type { Device, DeviceQuery } from '@/types/device'
 import { DEVICE_STATUS_MAP, DEVICE_STATUS_OPTIONS } from '@/types/device'
 import DeviceFormDialog from './DeviceFormDialog.vue'
+
+const router = useRouter()
 
 /* ---------------- 查询条件 ---------------- */
 const query = reactive<DeviceQuery>({
@@ -169,10 +172,13 @@ onMounted(async () => {
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="140" fixed="right" align="center">
+        <el-table-column label="操作" width="170" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleEdit(row as Device)">编辑</el-button>
             <el-button link type="danger" @click="handleDelete(row as Device)">删除</el-button>
+            <el-button link type="primary" @click="() => router.push(`/device/${row.id}`)"
+              >详情</el-button
+            >
           </template>
         </el-table-column>
       </el-table>

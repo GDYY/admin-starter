@@ -53,7 +53,7 @@ async function handleLogout() {
     <el-aside :width="isCollapse ? '64px' : '210px'" class="aside">
       <div class="logo">{{ isCollapse ? 'AS' : 'Admin Starter' }}</div>
       <el-menu
-        :default-active="route.path"
+        :default-active="(route.meta.activeMenu as string) ?? route.path"
         router
         :collapse="isCollapse"
         :collapse-transition="false"

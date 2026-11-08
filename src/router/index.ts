@@ -50,6 +50,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/inspectRecord/InspectRecordList.vue'),
         meta: { title: '巡检记录' },
       },
+      {
+        path: 'device/:id',
+        name: 'device-detail',
+        component: () => import('@/views/device/DeviceDetail.vue'),
+        meta: { title: '设备详情', activeMenu: '/device' },
+      },
     ],
   },
   {
