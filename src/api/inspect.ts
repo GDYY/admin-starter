@@ -135,9 +135,9 @@ export async function getInspectRecords(
     const wanted = query.result
     list = list.filter((r) => r.result === wanted)
   }
+  if (query.deviceId) list = list.filter((r) => r.deviceId === query.deviceId)
   if (dayFrom) list = list.filter((r) => toDay(r.inspectTime) >= dayFrom)
   if (dayTo) list = list.filter((r) => toDay(r.inspectTime) <= dayTo)
-
   const total = list.length
   const start = (query.page - 1) * query.pageSize
 

@@ -80,6 +80,7 @@ export interface InspectRecordQuery {
   executor?: string
   result?: InspectResult | '' // 结果筛选
   dateRange?: string[] // ['2026-10-18', '2026-10-24']，两个日期
+  deviceId?: number
 }
 
 /** 记录列表行 */
