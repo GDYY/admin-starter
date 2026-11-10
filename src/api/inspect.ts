@@ -7,6 +7,7 @@ import type {
   InspectRecordRow,
 } from '@/types/inspect'
 import type { PageResult } from '@/types/inspectPlan'
+import { createAbnormalFromRecord } from '@/api/abnormal'
 import { inspectTasks, markTaskFinished } from '@/mock/inspectTaskDb'
 import { inspectItems } from '@/mock/inspectDb'
 import { inspectRecords, useNextId } from '@/mock/inspectRecordDb'
@@ -57,14 +58,18 @@ export async function submitInspectRecord(payload: InspectSubmitPayload): Promis
 
   markTaskFinished(task.id, payload.inspectTime)
 
-  inspectRecords.unshift({
+  const record: InspectRecord = {
     ...payload,
     id: useNextId(),
     deviceCode: task.deviceCode,
     deviceName: task.deviceName,
     createdAt: new Date().toLocaleString('zh-CN', { hour12: false }),
     executor: task.executor,
-  })
+  }
+  inspectRecords.unshift(record) // ① 先落记录，异常单才有 recordId 可用
+
+  // ② 再按本次提交的明细生成异常单；不做全量扫描，避免重复生成（文档坑 4）
+  await createAbnormalFromRecord(record)
 }
 export async function getInspectRecordByTask(taskId: number) {
   await delay()
