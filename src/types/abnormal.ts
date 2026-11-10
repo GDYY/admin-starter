@@ -21,6 +21,25 @@ export interface Abnormal {
   handleResult: string
   createdAt: string
 }
+/** 异常列表查询条件 */
+export interface AbnormalQuery {
+  page: number
+  pageSize: number
+  /** 设备编号 / 设备名称 */
+  keyword?: string
+  status?: AbnormalStatus | ''
+  level?: AbnormalLevel | ''
+}
+
+/** 处理异常时提交的表单 */
+export interface AbnormalHandleForm {
+  level: AbnormalLevel
+  handler: string
+  handleResult: string
+  /** 目标状态：2=处理中 3=已闭环 */
+  status: AbnormalStatus
+}
+
 /** 级别映射表：一处定义，处处复用 */
 export const LEVEL_MAP: Record<
   AbnormalLevel,
