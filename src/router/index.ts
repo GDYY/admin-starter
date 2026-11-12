@@ -51,6 +51,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '巡检记录' },
       },
       {
+        path: 'abnormal',
+        name: 'abnormal',
+        component: () => import('@/views/abnormal/AbnormalList.vue'),
+        meta: { title: '异常处理' },
+      },
+      {
         path: 'device/:id',
         name: 'device-detail',
         component: () => import('@/views/device/DeviceDetail.vue'),

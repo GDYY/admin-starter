@@ -12,6 +12,7 @@ import {
   Monitor,
   SwitchButton,
   Tickets,
+  Warning,
 } from '@element-plus/icons-vue'
 import type { Component } from 'vue'
 import { useUserStore } from '@/stores/user'
@@ -34,6 +35,7 @@ const menus: { path: string; title: string; icon: Component }[] = [
   { path: '/inspect-plan', title: '巡检计划', icon: DataLine },
   { path: '/inspect-task', title: '巡检执行', icon: Tickets },
   { path: '/inspect-record', title: '巡检记录', icon: List },
+  { path: '/abnormal', title: '异常处理', icon: Warning },
 ]
 
 async function handleLogout() {
