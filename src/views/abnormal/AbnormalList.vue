@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { getAbnormalPage } from '@/api/abnormal'
 import { LEVEL_MAP, LEVEL_OPTIONS, STATUS_MAP, STATUS_OPTIONS } from '@/types/abnormal'
 import type { Abnormal, AbnormalLevel, AbnormalQuery, AbnormalStatus } from '@/types/abnormal'
+import AbnormalHandleDialog from './AbnormalHandleDialog.vue'
 
 /* ---------------- 查询条件 ---------------- */
 const query = reactive<AbnormalQuery>({
@@ -18,6 +19,10 @@ const query = reactive<AbnormalQuery>({
 const loading = ref(false)
 const list = ref<Abnormal[]>([])
 const total = ref(0)
+
+/* ---------------- 处理弹窗 ---------------- */
+const dialogVisible = ref(false)
+const currentId = ref<number | null>(null)
 
 async function loadData() {
   loading.value = true
@@ -45,12 +50,24 @@ function handleReset() {
   loadData()
 }
 
-/**
- * TODO(步骤 7): 换成处理弹窗。
- * 待处理 / 处理中进来是可编辑；已闭环进来是只读。
- */
+/** 打开处理弹窗：待处理/处理中可编辑，已闭环进来是只读 */
 function openHandle(row: Abnormal) {
-  ElMessage.info(`处理弹窗待实现：${row.deviceCode} ${row.itemName}`)
+  currentId.value = row.id
+  dialogVisible.value = true
+}
+
+/** 处理完刷新；当前页被筛空时自动往前翻一页 */
+async function refreshList() {
+  await loadData()
+  if (list.value.length === 0 && query.page > 1) {
+    query.page -= 1
+    await loadData()
+  }
+}
+
+function handleSaved() {
+  dialogVisible.value = false
+  refreshList()
 }
 
 onMounted(loadData)
@@ -163,6 +180,8 @@ onMounted(loadData)
         />
       </div>
     </el-card>
+
+    <AbnormalHandleDialog v-model="dialogVisible" :abnormal-id="currentId" @saved="handleSaved" />
   </div>
 </template>
 
