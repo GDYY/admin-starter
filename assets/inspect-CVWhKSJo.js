@@ -1,0 +1,1 @@
+var e={1:{label:`全部正常`,type:`success`},2:{label:`存在异常`,type:`danger`}},t=Object.keys(e).map(t=>({value:Number(t),label:e[Number(t)].label}));export{t as n,e as t};
